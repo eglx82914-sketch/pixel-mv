@@ -1,0 +1,980 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>像素歌词MV生成器</title>
+<meta name="description" content="载入歌曲和 LRC 歌词，按歌词的情绪和意象自动设计像素风歌词 MV，在浏览器里导出 MP4。">
+<style>
+:root{--bg:#0d0f16;--panel:#151824;--line:#262a3a;--text:#e6e4dc;--mute:#8b8fa3;--acc:#e8a04a;--red:#d24b3c;--field:#0e1019}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.6 "Microsoft YaHei","PingFang SC",sans-serif}
+.app{display:grid;grid-template-columns:340px 1fr;min-height:100vh}
+.panel{background:var(--panel);border-right:1px solid var(--line);padding:20px 18px;overflow:auto}
+h1{font-size:18px;margin:0 0 2px;letter-spacing:1px}
+.sub{color:var(--mute);margin:0 0 16px;font-size:12px}
+section{border-top:1px solid var(--line);padding:12px 0}
+label.h{display:block;font-weight:700;margin-bottom:6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--field);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font:inherit}
+input[type=number]{width:90px}
+input[type=color]{width:34px;height:26px;padding:0 2px;border:1px solid var(--line);border-radius:4px;background:var(--field)}
+textarea{height:170px;resize:vertical;font-family:Consolas,monospace;font-size:12px}
+input[type=file]{width:100%;font-size:12px;color:var(--mute)}
+.row{display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap}
+.hint{color:var(--mute);font-size:12px}
+.f{margin-bottom:6px}.f span{display:block;font-size:12px;color:var(--mute)}
+main{padding:20px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.stage{background:#000;border-radius:8px;overflow:hidden;box-shadow:0 10px 40px #0008}
+canvas{display:block;width:100%;height:auto;image-rendering:pixelated}
+.controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+button{background:#232838;color:var(--text);border:1px solid #33394d;border-radius:6px;padding:8px 16px;font:inherit;cursor:pointer}
+button:hover{background:#2b3145}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+button.primary{background:var(--acc);color:#1a1208;border-color:var(--acc);font-weight:700}
+button.stop{background:var(--red);border-color:var(--red);color:#fff}
+button.sm{padding:5px 12px;font-size:13px}
+#seek{flex:1;min-width:200px;accent-color:var(--acc)}
+#time{font-family:Consolas,monospace;color:var(--mute)}
+.warn{color:#f0b060}
+.tap{background:var(--panel);border:1px solid var(--acc);border-radius:8px;padding:14px 16px}
+.tapPrev{color:var(--mute);min-height:22px}
+.tapPrev::before{content:'刚打完：';color:var(--mute);margin-right:6px}
+.tapNext{font-size:22px;font-weight:700;margin:4px 0 12px;min-height:34px}
+.tapNext::before{content:'下一句：';font-size:13px;font-weight:400;color:var(--acc);margin-right:8px}
+.sb{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;min-width:0}
+.sbhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.sbhead b{font-size:15px}
+.sbinfo{flex:1;min-width:200px}
+.mood{display:inline-block;padding:1px 8px;border-radius:99px;background:#2a2436;color:#f0c890;font-size:12px;margin-right:6px}
+.sbwrap{overflow-x:auto}
+.sbt{border-collapse:collapse;width:100%;min-width:900px;font-size:12px}
+.sbt th{text-align:left;color:var(--mute);font-weight:400;padding:4px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
+.sbt td{padding:4px 6px;border-bottom:1px solid #1e2230;vertical-align:middle}
+.sbt tr.on td{background:#221e18}
+.sbt td.tm{font-family:Consolas,monospace;white-space:nowrap;color:var(--acc);cursor:pointer}
+.sbt td.ly{max-width:220px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sbt select,.sbt input[type=text]{padding:3px 4px;font-size:12px}
+.sbt select{min-width:96px}
+.sbt .bub{min-width:180px}
+body.still .panel,body.still .controls,body.still .sb,body.still .tip{display:none}
+body.still .app{display:block}body.still main{padding:0}body.still .stage{border-radius:0}
+@media (max-width:900px){.app{grid-template-columns:1fr}.panel{border-right:0;border-bottom:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="panel">
+  <h1>像素歌词 MV 生成器</h1>
+  <p class="sub">载入歌曲和歌词，按歌词的情绪自动设计像素风 MV。</p>
+
+  <section>
+    <label class="h">① 歌曲音频</label>
+    <input type="file" id="fAudio" accept="audio/*">
+    <div class="hint" id="audioInfo">还没载入。不载入也能预览，时长按 ⑤ 来算。</div>
+  </section>
+
+  <section>
+    <label class="h">② 歌词（LRC 格式）</label>
+    <input type="file" id="fLrc" accept=".lrc,.txt">
+    <textarea id="lrc" placeholder="[00:15.20]第一句歌词&#10;[00:19.80]第二句歌词&#10;……&#10;&#10;从音乐 App 复制或导出 LRC 歌词粘贴到这里。&#10;没有时间轴的纯文本也行，会按时长平均分配。"></textarea>
+    <div class="row"><span class="hint">整体偏移</span><input type="number" id="offset" step="0.1" value="0"><span class="hint">秒（字幕早了填正数）</span></div>
+    <div class="row"><button id="bTap">⏱ 打点对时间轴</button><button id="bSaveLrc">↓ 下载 LRC</button></div>
+    <div class="hint">只有纯文本歌词时：粘贴进上面的框，载入音频，点「打点对时间轴」。歌曲会从头播放，每句开唱时按一下空格。</div>
+  </section>
+
+  <section>
+    <label class="h">③ 画面风格</label>
+    <div class="f"><span>整体色调</span><select id="gPal"></select></div>
+    <div class="f"><span>天气氛围</span><select id="gWx"></select></div>
+    <div class="f"><span>角色颜色（发色 / 衣服）</span>
+      <div class="row">
+        <span class="hint">A</span><input type="color" id="cAh" value="#14141c" title="角色 A 发色"><input type="color" id="cAs" value="#c4a86e" title="角色 A 衣服">
+        <span class="hint">B</span><input type="color" id="cBh" value="#2c1d16" title="角色 B 发色"><input type="color" id="cBs" value="#e4e2d8" title="角色 B 衣服">
+      </div>
+    </div>
+    <div class="hint">「自动」会按歌词的情绪和意象来选。每一段还能在右边的分镜表里单独改。</div>
+  </section>
+
+  <section>
+    <label class="h">④ 文字</label>
+    <div class="f"><span>歌名</span><input type="text" id="tTitle" value="刻在我心底的名字"></div>
+    <div class="f"><span>歌手</span><input type="text" id="tArtist" value="卢广仲"></div>
+    <div class="f"><span>词曲信息</span><input type="text" id="tCredits" value="作词 卢广仲　作曲 卢广仲"></div>
+    <div class="f"><span>片尾一句话</span><input type="text" id="tEnd" value="有些名字，刻在心底，一辈子都不会忘。"></div>
+    <div class="row"><label><input type="checkbox" id="cBubble" checked> 对白气泡</label><label><input type="checkbox" id="cTitle" checked> 片头标题</label></div>
+  </section>
+
+  <section>
+    <label class="h">⑤ 时长（没载入音频时）</label>
+    <div class="row"><input type="number" id="dur" value="270" min="30"><span class="hint">秒</span></div>
+  </section>
+
+  <section class="hint">
+    「快速导出无声 MP4」不需要音频，逐帧渲染，比实时快。导出后在抖音里选这首歌当配乐，从 0:00 开始，歌词就能对上。<br>
+    「导出视频」是带音频的实时录制，整首歌多长就要录多久。录制期间别切走这个标签页，也别最小化窗口。Chrome / Edge 会优先导出 MP4，不支持时导出 WebM，两种格式抖音都能上传。
+  </section>
+</aside>
+
+<main>
+  <div class="stage"><canvas id="cv" width="1920" height="1080"></canvas></div>
+  <div class="tap" id="tapBox" hidden>
+    <div class="tapPrev" id="tapPrev"></div>
+    <div class="tapNext" id="tapNext"></div>
+    <div class="controls">
+      <button id="tapHit" class="primary">下一句（空格）</button>
+      <button id="tapBlank">间奏留白（回车）</button>
+      <button id="tapUndo">撤销（退格）</button>
+      <button id="tapDone">完成</button>
+      <button id="tapCancel">取消（Esc）</button>
+      <span id="tapCount" class="hint"></span>
+    </div>
+  </div>
+  <div class="controls">
+    <button id="bPlay">▶ 预览</button>
+    <input type="range" id="seek" min="0" max="1000" value="0">
+    <span id="time">0:00 / 4:30</span>
+  </div>
+  <div class="controls">
+    <button id="bExport" class="primary">● 导出视频</button>
+    <button id="bFast">⚡ 快速导出无声 MP4</button>
+    <span id="status" class="hint"></span>
+  </div>
+  <div class="sb">
+    <div class="sbhead">
+      <b>分镜表</b>
+      <span class="sbinfo hint" id="sbInfo"></span>
+      <button class="sm" id="bAuto">✦ 按歌词重新生成</button>
+      <button class="sm" id="bClassic">经典模板</button>
+    </div>
+    <div class="sbwrap">
+      <table class="sbt">
+        <thead><tr><th>时间</th><th>歌词</th><th>场景</th><th>色调</th><th>天气</th><th>双人</th><th>对白气泡（两句用 / 隔开）</th><th>先说</th></tr></thead>
+        <tbody id="sbBody"></tbody>
+      </table>
+    </div>
+    <div class="hint tip">点时间可以跳到那一段。改了任何一格，分镜就固定下来，不会再被自动生成覆盖；想重来就点「按歌词重新生成」。</div>
+  </div>
+</main>
+</div>
+
+<script>
+const SANS='"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
+const SERIF='"Noto Serif SC","Source Han Serif SC","Songti SC","STSong","SimSun",serif';
+const OW=1920,OH=1080,BAR=108;
+const W=400,H=144,VW=320,VH=144;
+const out=document.getElementById('cv'),ctx=out.getContext('2d');
+const world=document.createElement('canvas');world.width=W;world.height=H;
+const worldCtx=world.getContext('2d',{willReadFrequently:true});
+let g=worldCtx;
+
+// ---------- 像素绘图工具 ----------
+const BY=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5].map(v=>(v+.5)/16);
+const bay=(x,y)=>BY[((y&3)<<2)|(x&3)];
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const ease=p=>p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;
+function hash(n){n|=0;n=Math.imul(n^(n>>>16),0x45d9f3b);n=Math.imul(n^(n>>>16),0x45d9f3b);n^=n>>>16;return (n>>>0)/4294967296;}
+function R(x,y,w,h,c){g.fillStyle=c;g.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h));}
+function P(x,y,c){g.fillStyle=c;g.fillRect(Math.round(x),Math.round(y),1,1);}
+function L(x0,y0,x1,y1,c){x0=Math.round(x0);y0=Math.round(y0);x1=Math.round(x1);y1=Math.round(y1);g.fillStyle=c;
+  const dx=Math.abs(x1-x0),sx=x0<x1?1:-1,dy=-Math.abs(y1-y0),sy=y0<y1?1:-1;let e=dx+dy;
+  for(let i=0;i<3000;i++){g.fillRect(x0,y0,1,1);if(x0===x1&&y0===y1)break;const e2=2*e;if(e2>=dy){e+=dy;x0+=sx;}if(e2<=dx){e+=dx;y0+=sy;}}}
+function E(cx,cy,rx,ry,c,top){g.fillStyle=c;for(let y=Math.ceil(-ry);y<=(top?0:ry);y++){const w=Math.floor(rx*Math.sqrt(Math.max(0,1-(y*y)/(ry*ry))));g.fillRect(Math.round(cx-w),Math.round(cy+y),w*2+1,1);}}
+function O(cx,cy,r,c){const n=Math.ceil(r*8);for(let i=0;i<n;i++){const a=i/n*Math.PI*2;P(cx+Math.cos(a)*r,cy+Math.sin(a)*r,c);}}
+// 抖动光晕（像素点阵的光）
+function GL(cx,cy,rx,ry,c,s=1,x0=0,y0=0,x1=W-1,y1=H-1){g.fillStyle=c;
+  const ax=Math.max(Math.floor(cx-rx),x0,0),bx=Math.min(Math.ceil(cx+rx),x1,W-1),ay=Math.max(Math.floor(cy-ry),y0,0),by=Math.min(Math.ceil(cy+ry),y1,H-1);
+  for(let y=ay;y<=by;y++)for(let x=ax;x<=bx;x++){const dx=(x-cx)/rx,dy=(y-cy)/ry,d=Math.sqrt(dx*dx+dy*dy);if(d<1&&(1-d)*s>bay(x,y))g.fillRect(x,y,1,1);}}
+// 路灯/台灯的光锥
+function CONE(ax,ay,y1,w0,w1,c,s=1){g.fillStyle=c;for(let y=Math.max(0,Math.round(ay));y<=Math.min(H-1,y1);y++){const f=(y-ay)/(y1-ay),hw=w0+(w1-w0)*f;
+  for(let x=Math.floor(ax-hw);x<=Math.ceil(ax+hw);x++){if(x<0||x>=W)continue;const v=(1-Math.abs(x-ax)/hw)*(1-f*.55)*s;if(v>bay(x,y))g.fillRect(x,y,1,1);}}}
+// 抖动渐变
+function GRAD(x0,y0,w,h,cols){for(let y=0;y<h;y++){const f=y/Math.max(1,h-1)*(cols.length-1),i=Math.min(cols.length-2,Math.floor(f)),fr=f-i;
+  R(x0,y0+y,w,1,cols[i]);g.fillStyle=cols[i+1];for(let x=0;x<w;x++)if(fr>bay(x0+x,y0+y))g.fillRect(x0+x,y0+y,1,1);}}
+const CACHE={};
+function cached(key,fn,w=W,h=H){let c=CACHE[key];if(!c){c=document.createElement('canvas');c.width=w;c.height=h;const old=g;g=c.getContext('2d');fn();g=old;CACHE[key]=c;}return c;}
+function blit(c,x,y){g.drawImage(c,Math.round(x),Math.round(y));}
+function tile(c,off){const o=((off%W)+W)%W;blit(c,-o,0);blit(c,W-o,0);}
+function clip(x,y,w,h,fn){g.save();g.beginPath();g.rect(x,y,w,h);g.clip();fn();g.restore();}
+function SP(rows,pal,x,y,flip){const mw=Math.max(...rows.map(r=>r.length));x=Math.round(x);y=Math.round(y);
+  for(let j=0;j<rows.length;j++){const r=rows[j];for(let i=0;i<r.length;i++){const c=pal[r[i]];if(!c)continue;g.fillStyle=c;g.fillRect(flip?x+mw-1-i:x+i,y+j,1,1);}}}
+function RAIN(T,o={}){const n=o.n||140,x0=o.x0||0,y0=o.y0||0,x1=o.x1??W,y1=o.y1??H,sp=o.sp||150,sl=o.sl??.15,len=o.len||4,seed=o.seed||1,c=o.c||'#7486ab',c2=o.c2||'#3c4966';
+  const hh=y1-y0,ww=x1-x0;for(let i=0;i<n;i++){const a=hash(i*7+seed*1013),b=hash(i*13+seed*2029),s=.7+.6*hash(i*19+seed*307);
+    const dist=b*hh+T*sp*s,y=dist%hh,x=(((a*ww+dist*sl)%ww)+ww)%ww;g.fillStyle=s>1.05?c:c2;const l=Math.round(len*s);
+    for(let k=0;k<l;k++){const px=Math.round(x0+x-k*sl),py=Math.round(y0+y-k);if(py>=y0&&py<y1&&px>=x0&&px<x1)g.fillRect(px,py,1,1);}}}
+function SNOW(T,o={}){const n=o.n||200,hh=(o.y1??H),sp=o.sp||14,seed=o.seed||5;for(let i=0;i<n;i++){const a=hash(i*7+seed*1013),b=hash(i*13+seed*2029),s=.6+.8*hash(i*19+seed*307);
+  const y=(b*hh+T*sp*s)%hh,x=(((a*W+Math.sin(T*.9+i)*3+T*4*s)%W)+W)%W;R(x,y,s>1.15?2:1,s>1.15?2:1,s>1?'#e8eef8':'#9aa6c4');}}
+function STARS(T,n,x0,y0,x1,y1,seed){for(let i=0;i<n;i++){const x=x0+hash(i*3+seed)*(x1-x0),y=y0+hash(i*5+seed*7)*(y1-y0),tw=.5+.5*Math.sin(T*2+i*1.7);
+  if(tw>.25)P(x,y,tw>.75?'#d8e0f8':'#5a6688');}}
+// 飘落的花瓣 / 树叶
+function PETALS(T,cols,n=70,seed=9){for(let i=0;i<n;i++){const a=hash(i*7+seed*101),b=hash(i*13+seed*203),s=.6+.8*hash(i*19+seed*307);
+  const y=(b*H+T*16*s)%H,x=(((a*W+T*12*s+Math.sin(T*1.3+i)*6)%W)+W)%W,ph=Math.floor(T*4*s+i)%3,c=cols[i%cols.length];
+  if(ph===0)R(x,y,2,1,c);else if(ph===1)R(x,y,1,2,c);else P(x,y,c);}}
+function FIREFLIES(T,n=36){for(let i=0;i<n;i++){const a=hash(i*7+41),b=hash(i*13+43),s=.6+.8*hash(i*19+47);
+  const x=a*W+Math.sin(T*.45*s+i)*22,y=46+b*92+Math.cos(T*.6*s+i*2)*9,bl=Math.sin(T*2.2*s+i*3);
+  if(bl>-.2){GL(x,y,3.5,3.5,'#6a7a2a',.55*(bl+.2));P(x,y,bl>.4?'#f4ffa0':'#b8c860');}}}
+function METEOR(T){STARS(T,46,0,0,W,90,123);const per=3.6,k=Math.floor(T/per),ph=(T%per)/1.1;if(ph>1)return;
+  const sx=70+hash(k*7+1)*260,sy=6+hash(k*7+2)*34,hx=sx-ph*46,hy=sy+ph*20;
+  for(let j=0;j<16;j++){if(j>8&&j%2)continue;P(hx+j*2.3,hy-j,j<4?'#ffffff':j<9?'#b8c8f0':'#6a7aa8');}}
+
+// ---------- 色调（把整个画面映射到一条情绪色带上） ----------
+const PALS={
+  orig:{name:'原色（场景本来的颜色）'},
+  night:{name:'雨夜蓝 · 伤感',c:['#05070f','#0f1630','#22305a','#4a5f94','#9db4e0','#f6dca8']},
+  dusk:{name:'黄昏暖 · 怀旧',c:['#140a14','#3a1a32','#7a3448','#c9604e','#f0a860','#fff0c8']},
+  sepia:{name:'旧照片 · 回忆',c:['#140c08','#3a2618','#6e4a2e','#a8784a','#d8b47c','#f8ecd0']},
+  neon:{name:'霓虹夜 · 都市',gm:.72,c:['#06030c','#170a2e','#3a1660','#8a2a8c','#e84f9c','#a8f6ff']},
+  dawn:{name:'清晨粉 · 希望',c:['#1a1830','#3c3a66','#7a6a9a','#d48fa0','#f7c4b0','#fff6ea']},
+  summer:{name:'盛夏青 · 甜蜜',c:['#06141a','#0e3a44','#1f6e70','#4fb09a','#b8e8b0','#fffbe0']},
+  snow:{name:'雪夜白 · 冬日',c:['#0a0c16','#1e2438','#3e4a68','#7c8aac','#c4d0e6','#ffffff']},
+};
+const LUTS={};
+function lutFor(id){if(LUTS[id])return LUTS[id];const st=PALS[id].c.map(h=>[1,3,5].map(i=>parseInt(h.substr(i,2),16))),n=st.length,lut=new Uint8Array(768);
+  const gm=PALS[id].gm||1;
+  for(let l=0;l<256;l++){const f=Math.pow(l/255,gm)*(n-1),i=Math.min(n-2,Math.floor(f)),fr=f-i;for(let k=0;k<3;k++)lut[l*3+k]=Math.round(st[i][k]+(st[i+1][k]-st[i][k])*fr);}
+  return LUTS[id]=lut;}
+function grade(id){if(!id||id==='orig'||!PALS[id])return;const lut=lutFor(id),k=.8,im=worldCtx.getImageData(0,0,W,H),d=im.data;
+  // 饱和度高的像素（灯光、霓虹、红围巾）少映射一些，保住光源本来的颜色
+  for(let i=0;i<d.length;i+=4){const r=d[i],gg=d[i+1],b=d[i+2],j=((r*77+gg*150+b*29)>>8)*3,mx=Math.max(r,gg,b),sat=(mx-Math.min(r,gg,b))/(mx+1),ke=k*(1-.6*sat);
+    d[i]=r+(lut[j]-r)*ke;d[i+1]=gg+(lut[j+1]-gg)*ke;d[i+2]=b+(lut[j+2]-b)*ke;}
+  worldCtx.putImageData(im,0,0);}
+
+// ---------- 天气 ----------
+const WEATHERS={none:'无',rain:'雨',snow:'雪',sakura:'樱花',leaves:'落叶',fireflies:'萤火虫',meteor:'星空流星'};
+function WEATHER(kind,T){switch(kind){
+  case 'rain':RAIN(T,{n:170,sp:150,sl:.15,len:4,seed:3});break;
+  case 'snow':SNOW(T,{n:200});break;
+  case 'sakura':PETALS(T,['#f6b8c8','#fbd6e0','#e890a8']);break;
+  case 'leaves':PETALS(T,['#d8803a','#b85a2a','#e8b04a'],55,4);break;
+  case 'fireflies':FIREFLIES(T);break;
+  case 'meteor':METEOR(T);break;}}
+
+// ---------- 角色 ----------
+const BACK_STAND=["...kkkk...","..kkkkkk..",".kkkkkkkk.",".kkkkkkkk.","skkkkkkkKs",".kkkkkkKK.","..kkkkKK..","...sssS...","..uuuuuU..",".uuuuuuuU.","uuuuuuuuUU","uuuuuuuuUU","uuuuuuuuUU","suuuuuuuUS","s.uuuuuU.S","S.uuuuuU.S","..ppppPP..","..ppppPP..","..pppPPP..","..ppP.PP..","..ppP.PP..","..ppP.PP..","..ppP.PP..",".bbb..bbb."];
+const BACK_STAND_B=["....kk....",...BACK_STAND];
+const BACK_SIT=["....kkkk....","...kkkkkk...","..kkkkkkkk..","..kkkkkkkk..",".skkkkkkkKs.","..kkkkkkKK..","...kkkkKK...","....sssS....","..uuuuuuUU..",".uuuuuuuuUU.","uuuuuuuuuuUU","uuuuuuuuuuUU","uuuuuuuuuuUU","uuuuuuuuuuUU"];
+const BACK_SIT_B=[".....kk.....",...BACK_SIT];
+const HEAD_R=[".kkkk.","kkkkkk","kkkkks","kkksek","kkssss",".ssss."];
+function mix(a,b,f){const p=h=>[1,3,5].map(i=>parseInt(h.substr(i,2),16)),x=p(a),y=p(b);return '#'+x.map((v,i)=>Math.round(v+(y[i]-v)*f).toString(16).padStart(2,'0')).join('');}
+function makePal(hair,shirt){return {k:hair,K:mix(hair,'#ffffff',.12),s:'#e0a884',S:'#b07a5e',e:'#14141c',u:shirt,U:mix(shirt,'#000000',.3),p:'#2a3050',P:'#1c2136',b:'#100c0c'};}
+let PA=makePal('#14141c','#c4a86e'),PB=makePal('#2c1d16','#e4e2d8');
+const PAL_MAN={k:'#1a1a22',K:'#4a4a56',s:'#e0a884',S:'#b07a5e',e:'#14141c',u:'#3a4262',U:'#283048',p:'#222634',P:'#181b26',b:'#100c0c'};
+const PAL_OLD={...PAL_MAN,k:'#a2a2ac',K:'#74747e',u:'#3c3440',U:'#2a242e',p:'#2a242e',P:'#1e1a22'};
+const PAL_SIL={k:'#3a2416',K:'#3a2416',s:'#3a2416',S:'#3a2416',u:'#3a2416',U:'#3a2416'};
+const PAL_SHADOW={k:'#07050c',K:'#07050c',s:'#07050c',S:'#07050c',u:'#07050c',U:'#07050c',p:'#07050c',P:'#07050c',b:'#07050c'};
+// 大号背影（坐着），房间 / 车窗 / 咖啡馆用
+function SITTER(mx,my,M,by){E(mx,my+20,17,7,M.u);R(mx-17,my+20,35,by-my-20,M.u);for(let y=my+14;y<by;y++)for(let x=mx+6;x<mx+19;x++)if((x-mx-6)/13>bay(x,y))P(x,y,M.U);
+  R(mx-3,my+7,7,8,M.S);E(mx-8,my+1,2,3,'#d49a78');E(mx+8,my+1,2,3,M.S);
+  E(mx,my-1,8,9,M.k);for(let i=0;i<9;i++)P(mx-5+hash(i*7)*10,my-8+hash(i*3)*12,M.K);}
+function UMBRELLA(cx,top,rx){L(cx,top,cx,top+3,'#1a1a1a');E(cx,top,rx,7,'#2a3550',true);for(let k=-2;k<=2;k++)L(cx,top-6,cx+k*rx/3,top,'#1a2238');R(cx-rx,top,rx*2+1,1,'#1a2238');}
+
+function BIKE(bx,by,T,duo){
+  const wr=6,rx=bx-11,fx=bx+11,hy=by-wr,rot=T*9;
+  for(const cx of [rx,fx]){O(cx,hy,wr,'#4a5068');O(cx,hy,wr-1,'#252a3a');for(let k=0;k<3;k++){const a=rot+k*Math.PI/3;L(cx-Math.cos(a)*(wr-1),hy-Math.sin(a)*(wr-1),cx+Math.cos(a)*(wr-1),hy+Math.sin(a)*(wr-1),'#363c52');}P(cx,hy,'#8a8a96');}
+  const cr={x:bx-1,y:hy},st={x:bx-4,y:hy-9},hd={x:fx-3,y:hy-12},fr='#a8423a';
+  L(rx,hy,st.x,st.y,fr);L(rx,hy,cr.x,cr.y,fr);L(cr.x,cr.y,st.x,st.y,fr);L(st.x,st.y+2,hd.x,hd.y+3,fr);L(cr.x,cr.y,hd.x,hd.y+4,fr);L(hd.x,hd.y,fx,hy,fr);
+  L(hd.x,hd.y,hd.x+3,hd.y-1,'#9a9aa6');R(st.x-2,st.y-1,5,1,'#16161a');R(rx-3,hy-8,9,1,'#6a6a76');L(rx,hy,rx+1,hy-8,'#6a6a76');
+  const pa=T*9,p1={x:cr.x+Math.cos(pa)*3,y:cr.y+Math.sin(pa)*3},p2={x:cr.x-Math.cos(pa)*3,y:cr.y-Math.sin(pa)*3};
+  const hb={x:rx+1,y:hy-9},sb={x:rx+1,y:hb.y-9},swing=Math.sin(T*3)*1.5,hp={x:st.x,y:st.y-1},sh={x:st.x+4,y:st.y-10};
+  if(duo){L(hb.x,hb.y,hb.x+3,hb.y+1,PB.p);L(hb.x+3,hb.y+1,hb.x+3+swing,hb.y+8,PB.p);L(hb.x+4,hb.y+1,hb.x+4+swing,hb.y+8,PB.P);R(hb.x+3+swing,hb.y+8,3,1,'#100c0c');
+    for(let w=-2;w<=1;w++)L(hb.x+w,hb.y,sb.x+w,sb.y,w>0?PB.U:PB.u);SP(HEAD_R,PB,sb.x-3,sb.y-6);}
+  const leg=(p,c)=>{const k={x:(hp.x+p.x)/2+3,y:(hp.y+p.y)/2-2};L(hp.x,hp.y,k.x,k.y,c);L(hp.x+1,hp.y,k.x+1,k.y,c);L(k.x,k.y,p.x,p.y,c);R(p.x-1,p.y,3,1,'#100c0c');};
+  leg(p2,PA.P);for(let w=-2;w<=1;w++)L(hp.x+w,hp.y,sh.x+w,sh.y,w>0?PA.U:PA.u);leg(p1,PA.p);
+  SP(HEAD_R,PA,sh.x-2,sh.y-6);L(sh.x+1,sh.y+2,hd.x+1,hd.y,PA.u);P(hd.x+2,hd.y,PA.s);
+  if(duo){L(sb.x+1,sb.y+3,hp.x+2,hp.y-4,PB.u);P(hp.x+3,hp.y-4,PB.s);}
+}
+
+// ---------- 楼宇（片头/片尾） ----------
+const winPos=(r,c)=>({x:44+c*36,y:10+r*27});
+function bldStatic(){return cached('bld',()=>{
+  R(0,0,W,H,'#070a14');R(26,0,348,H,'#111727');
+  for(let y=0;y<H;y++)for(let x=26;x<374;x++)if(hash(x*31+y*977)>.93)P(x,y,'#151c2e');
+  for(let r=0;r<5;r++)for(let c=0;c<9;c++){const {x,y}=winPos(r,c);R(x-1,y-1,26,18,'#1b2236');R(x,y,24,16,'#060910');R(x+11,y,2,16,'#141a2a');R(x-2,y+17,28,2,'#1f2740');}
+});}
+function litWin(r,c,s=1,glow=true,person=false){const {x,y}=winPos(r,c);
+  if(glow){GL(x+12,y+8,34,24,'#221e2c',.95*s);GL(x+12,y+8,22,15,'#3a2e30',.8*s);}
+  R(x,y,24,16,'#c4823e');GRAD(x,y,24,9,['#e6ad62','#c4823e']);R(x,y,3,16,'#9a5e2c');R(x+21,y,3,16,'#9a5e2c');
+  if(person)clip(x,y,24,16,()=>SP(BACK_SIT,PAL_SIL,x+6,y+4));
+  R(x+11,y,2,16,'#4a2e1a');R(x-2,y+17,28,2,'#2a3048');}
+function dimWin(r,c){const {x,y}=winPos(r,c);R(x,y,24,16,'#2a2230');R(x,y+10,24,6,'#342a36');R(x+11,y,2,16,'#141a2a');}
+
+// ================== 场景库 ==================
+// heads: 气泡指向的头顶位置 [A, B]；duo: 支持双人；win: 室内场景里能看到天气的窗户 [x,y,w,h]
+const S={};
+S.title={name:'片头·夜色楼宇',defWx:'mood',cam:p=>({fx:200,fy:74,z:1+.16*ease(p)}),draw(t,p,T,env){
+  blit(bldStatic(),0,0);dimWin(1,0);dimWin(3,7);dimWin(4,2);litWin(2,4,1,true,true);
+}};
+S.end={name:'熄灯·片尾',defWx:'mood',cam:p=>({fx:200,fy:74,z:1.16-.16*ease(p)}),draw(t,p,T,env){
+  blit(bldStatic(),0,0);
+  for(let r=0;r<5;r++)for(let c=0;c<9;c++){const i=r*9+c,main=r===2&&c===4;if(!main&&hash(i*5+2)<.5)continue;
+    const off=main?.82:.08+hash(i*11+7)*.62;if(p<off)litWin(r,c,1,main,main);}
+}};
+
+function roomStatic(v){return cached('room'+v,()=>{const dawn=v==='D';
+  R(0,0,W,H,dawn?'#242b42':'#181f32');
+  for(let y=0;y<117;y++)for(let x=0;x<W;x++)if(hash(x*73+y*1031)>.95)P(x,y,dawn?'#2b334a':'#1d2538');
+  if(!dawn){GL(254,86,90,55,'#251f26',.9);GL(254,88,45,30,'#3e2e2a',.8);}
+  R(0,117,W,3,'#0f121b');R(0,120,W,24,'#11141e');R(0,120,W,1,'#252b3e');for(let x=0;x<W;x+=26)R(x,121,1,23,'#0c0f17');
+  R(16,28,44,92,'#3c2618');R(18,30,40,90,'#4a2f1e');for(const [a,b,h] of [[22,36,34],[40,36,34],[22,76,38],[40,76,38]])R(a,b,14,h,'#3e2718');P(54,78,'#c9a050');P(54,79,'#8a6a30');
+  R(26,40,2,2,'#8a8a8a');R(24,42,6,3,'#a8302a');R(25,45,4,22,'#b83a30');R(25,45,1,22,'#8a2620');for(let i=0;i<4;i++)R(25+i,67,1,2+(i%2),'#b83a30');
+  E(90,40,8,8,'#5a3e2a');E(90,40,6,6,'#d8d0b8');for(let k=0;k<12;k++){const a=k/12*Math.PI*2;P(90+Math.cos(a)*5,40+Math.sin(a)*5,'#6a6050');}
+  const wx=130,wy=18,ww=160,wh=70;
+  R(wx-4,wy-4,ww+8,wh+8,'#3e2a1c');R(wx-3,wy-3,ww+6,wh+6,'#56392a');
+  if(dawn)GRAD(wx,wy,ww,wh,['#3a4470','#6a6490','#b88290','#e8ae8e']);else GRAD(wx,wy,ww,wh,['#04070e','#0a0f1c','#121a30']);
+  for(let x=wx;x<wx+ww;){const w=6+Math.floor(hash(x*3)*14),h=10+Math.floor(hash(x*7+1)*30);R(x,wy+wh-h,Math.min(w,wx+ww-x),h,dawn?'#3c3a5a':'#0c1222');
+    for(let yy=wy+wh-h+3;yy<wy+wh-2;yy+=4)for(let xx=x+1;xx<Math.min(x+w,wx+ww)-1;xx+=3)if(hash(xx*13+yy*7)>(dawn?.9:.7))P(xx,yy,hash(xx+yy)>.35?'#d89a4c':'#7a9ad0');x+=w;}
+  if(!dawn)for(let i=0;i<14;i++)P(wx+hash(i*9)*ww,wy+hash(i*5+1)*25,'#5a6688');
+  R(wx+ww/2-1,wy,3,wh,'#56392a');R(wx,wy+30,ww,3,'#56392a');
+  R(wx-8,wy+wh+3,ww+16,4,'#6a4630');R(wx-8,wy+wh+7,ww+16,1,'#2a1a10');
+  if(dawn){for(let y=wy+wh+8;y<144;y++){const f=(y-wy-wh)/60;for(let x=wx+10+(y-wy)*.5;x<wx+ww-10+(y-wy)*.5;x++)if(.35*(1-f)>bay(Math.round(x),y))P(x,y,'#4a4560');}}
+  R(112,96,190,4,'#6a4630');R(112,100,190,2,'#3a2418');R(116,102,182,16,'#4a2f1e');R(122,108,64,1,'#3a2418');R(232,108,60,1,'#3a2418');P(154,112,'#a88a50');P(262,112,'#a88a50');
+  R(116,102,4,18,'#3a2418');R(294,102,4,18,'#3a2418');
+  R(134,86,24,10,'#2a2a32');E(140,91,3,3,'#18181e');E(152,91,3,3,'#18181e');R(143,87,6,3,'#4a4a56');L(156,86,163,72,'#6a6a74');
+  R(232,84,10,12,'#8a6a40');R(233,85,8,9,'#cbbd94');P(235,88,'#14141c');R(235,89,1,4,'#c4a86e');P(238,88,'#2c1d16');R(238,89,1,4,'#e4e2d8');R(235,93,4,1,'#9a8a60');
+  R(268,88,16,3,'#5a3a5a');R(270,85,13,3,'#2a4a5a');R(267,91,18,5,'#7a3a2a');
+  R(250,94,8,2,'#2a2a30');L(254,94,250,82,'#3a3a44');L(250,82,255,75,'#3a3a44');for(let i=0;i<6;i++)R(253-i,71+i,4+i*2,1,'#2e5a4a');R(247,77,16,1,dawn?'#2e5a4a':'#f0c878');
+  if(!dawn)GL(255,80,16,8,'#f0c878',.55,0,78,W,96);
+  R(316,86,4,34,'#3e2a1c');R(318,96,82,24,'#2a3352');R(318,96,82,3,'#3a4466');E(350,95,14,4,'#8a90a8');R(320,118,80,2,'#1a2034');
+});}
+function roomDraw(v){return function(t,p,T,env){const dawn=v==='D';
+  blit(roomStatic(v),0,0);
+  env.wx([130,18,160,70]);
+  if(dawn)for(let k=0;k<3;k++){const bx=130+((T*10+k*50)%180),by=30+k*7+Math.sin(T*3+k)*2,w=Math.floor(T*6+k)%2;if(bx<288){P(bx,by,'#2a2438');P(bx-1,by-1+w,'#2a2438');P(bx+1,by-1+w,'#2a2438');}}
+  const a=T*Math.PI*2/60-Math.PI/2;L(90,40,90+Math.cos(a)*5,40+Math.sin(a)*5,'#3a2a20');P(90,40,'#3a2a20');
+  const bob=Math.sin(T*1.2)>.85?1:0,mx=206,my=66+bob;
+  SITTER(mx,my,PAL_MAN,112);
+  if(!dawn)GL(mx+12,my+12,9,22,'#6a5040',.55);else GL(mx-6,my+4,10,20,'#4a4a6a',.45);
+  R(mx-15,100,3,22,'#4a2f1e');R(mx+13,100,3,22,'#4a2f1e');R(mx-16,99,33,3,'#5a3a26');R(mx-18,110,37,3,'#5a3a26');R(mx-18,113,37,1,'#2a1810');
+};}
+S.roomN={name:'雨夜房间',defWx:'rain',indoor:1,heads:[{x:206,y:54}],cam:p=>({fx:170+50*ease(p),fy:72,z:1.06}),draw:roomDraw('N')};
+S.roomD={name:'清晨窗台',defWx:'none',indoor:1,heads:[{x:206,y:54}],cam:p=>({fx:200,fy:70,z:1.22-.2*ease(p)}),draw:roomDraw('D')};
+
+function corrStatic(){return cached('corr',()=>{
+  GRAD(0,0,W,108,['#262650','#4a3468','#93506e','#d97a58','#f2ae62']);
+  E(240,98,13,13,'#ffd68a');E(240,98,10,10,'#fff0c0');
+  for(let x=0;x<W;){const w=8+Math.floor(hash(x*3+1)*18),h=6+Math.floor(hash(x*5+2)*16);R(x,106-h,w,h,'#5a2f4a');x+=w;}
+  for(let x=0;x<W;){const w=10+Math.floor(hash(x*7+3)*22),h=3+Math.floor(hash(x*11+4)*10);R(x,108-h,w,h+2,'#43243e');if(hash(x)>.6)R(x+2,104-h,5,4,'#43243e');x+=w;}
+  R(0,0,W,12,'#24161e');R(0,12,W,2,'#3a242c');
+  R(0,108,W,3,'#5a3a3c');R(0,111,W,1,'#2a1a20');for(let x=2;x<W;x+=6)R(x,111,2,13,'#3e2830');R(0,124,W,3,'#4a3036');
+  R(0,127,W,17,'#2c1e26');GL(240,133,110,10,'#5a3a36',.8,0,127);
+  for(let x=0;x<W;x+=6)for(let y=128;y<144;y++)if(.3*(1-(y-128)/16)>bay(x,y))P(x+1,y,'#3a262c');
+});}
+function corrCols(){return cached('corrc',()=>{for(const cx of [60,300]){R(cx,0,16,128,'#3a2830');R(cx,0,2,128,'#7a4a44');R(cx+14,0,2,128,'#24161e');R(cx-2,124,20,4,'#2a1c22');}});}
+S.corridor={name:'黄昏走廊',defWx:'none',indoor:1,duo:1,heads:[{x:181,y:100},{x:195,y:99}],cam:p=>({fx:225-40*ease(p),fy:80,z:1.08}),draw(t,p,T,env){
+  blit(corrStatic(),0,0);env.wx([0,14,W,94]);blit(corrCols(),0,0);
+  for(let k=0;k<4;k++){const bx=((T*12+k*47)%(W+40))-20,by=36+k*7+Math.sin(T*3+k)*2,w=Math.floor(T*6+k)%2,c='#3a2440';P(bx,by,c);P(bx-1,by-1+w,c);P(bx+1,by-1+w,c);P(bx-2,by-2+2*w,c);P(bx+2,by-2+2*w,c);}
+  if(env.duo){SP(BACK_STAND,PA,176,103);SP(BACK_STAND_B,PB,190,102);}else SP(BACK_STAND,PA,183,103);
+}};
+
+function classStatic(){return cached('class',()=>{
+  R(0,0,W,H,'#d4c6a6');R(0,0,W,6,'#b8a684');for(let y=6;y<84;y++)for(let x=0;x<W;x++)if(hash(x*37+y*911)>.96)P(x,y,'#c8b898');
+  R(0,84,W,36,'#8a6a48');R(0,84,W,2,'#6a4e34');for(let x=0;x<W;x+=40)R(x,86,1,34,'#7a5c3e');
+  R(0,120,W,24,'#9a8060');for(let y=124;y<H;y+=6)R(0,y,W,1,'#8a7052');
+  R(36,18,136,58,'#6a4e34');R(40,22,128,50,'#2e4a3c');R(36,76,136,3,'#7a5c3e');
+  for(const [a,b,c,d] of [[48,30,90,30],[48,38,120,38],[48,46,100,46],[130,30,158,58],[140,56,160,30]])L(a,b,c,d,'#b8c8b8');R(150,73,8,2,'#e8e8e0');
+  for(let i=0;i<3;i++){const x=200+i*62;R(x-3,15,60,68,'#ece4d2');GRAD(x,18,54,62,['#7ab0e4','#c8e2f4']);
+    E(x+14,66,16,12,'#5a9a4a');E(x+40,70,18,10,'#4a8a3c');E(x+30,60,10,8,'#6aaa56');R(x+26,18,2,62,'#ece4d2');}
+  for(let i=0;i<3;i++){const x0=200+i*62;for(let y=80;y<120;y++){const sh=(y-80)*.9;for(let x=Math.round(x0-sh);x<x0+50-sh;x++)if(x>=0&&.3>bay(x,y))P(x,y,'#efe2bc');}}
+  for(const x of [40,100,160,220,280,340]){R(x,92,30,3,'#a87c4a');R(x+2,95,26,8,'#8a6038');}
+  for(const x of [20,90,160,230,300,370]){R(x,112,36,3,'#b08450');R(x+2,115,32,10,'#8a6038');R(x+4,125,2,10,'#6a4a2c');R(x+30,125,2,10,'#6a4a2c');}
+});}
+S.classroom={name:'午后教室',defWx:'none',indoor:1,duo:1,heads:[{x:242,y:99},{x:312,y:98}],cam:p=>({fx:200+30*ease(p),fy:72,z:1.08}),draw(t,p,T,env){
+  blit(classStatic(),0,0);env.wx([200,18,178,62]);
+  const sit=(x,pal,rows,y)=>{SP(rows,pal,x,y);R(x-1,114,14,2,'#7a5434');R(x,116,2,10,'#6a4a2c');R(x+10,116,2,10,'#6a4a2c');};
+  sit(236,PA,BACK_SIT,100);if(env.duo)sit(306,PB,BACK_SIT_B,99);
+  const w=Math.cos(T*10)*16;R(200,0,1,6,'#5a5048');R(200-Math.abs(w),7,Math.abs(w)*2+1,2,'#6a6058');R(198,6,5,3,'#4a4038');
+}};
+
+function deskStatic(){return cached('desk',()=>{
+  R(0,0,W,H,'#6a4428');
+  for(let k=0;k<26;k++){const yy=k*4.6+hash(k)*3;for(let x=0;x<W;x++){const y=yy+Math.sin(x*.03+k)*1.5+Math.sin(x*.011+k*2)*2;if(y<118)P(x,y,k%3?'#5c3a22':'#7a5232');}}
+  E(80,28,6,3,'#4e3019');O(80,28,8,'#5c3a22');
+  for(let i=0;i<9;i++){const x=hash(i*7)*W,y=hash(i*11)*110;L(x,y,x+4+hash(i)*10,y+hash(i*3)*4-2,'#4a2e18');}
+  R(0,118,W,4,'#7a5434');R(0,122,W,22,'#3a2414');R(0,122,W,1,'#2a180c');
+  for(let i=0;i<3;i++){L(300+i,101,352+i,92,i===1?'#f0c050':'#c89a30');}L(298,102,301,101,'#3a3030');R(353,91,4,3,'#d89090');
+});}
+const CARVE=(()=>{const segs=[],add=(ox,oy,arr)=>arr.forEach(([a,b,c,d])=>segs.push([ox+a,oy+b,ox+c,oy+d]));
+  add(128,36,[[0,6,26,6],[13,0,13,30],[4,14,22,14],[4,14,1,28],[22,14,26,28],[7,22,19,22]]);
+  const hp=[[10,6],[6,1],[1,2],[0,7],[10,17],[20,7],[19,2],[14,1],[10,6]];for(let i=0;i<hp.length-1;i++)segs.push([185+hp[i][0],48+hp[i][1],185+hp[i+1][0],48+hp[i+1][1]]);
+  add(238,36,[[2,2,24,2],[2,2,2,28],[24,2,24,28],[2,15,24,15],[13,2,13,28],[2,28,24,28]]);
+  const len=segs.map(s=>Math.hypot(s[2]-s[0],s[3]-s[1]));return {segs,len,total:len.reduce((a,b)=>a+b,0)};})();
+S.desk={name:'课桌刻字',defWx:'none',indoor:1,cam:p=>({fx:200,fy:62,z:1.3-.25*ease(p)}),draw(t,p,T,env){
+  blit(deskStatic(),0,0);env.wx(null);
+  for(const base of [30,150]){const px=base+t*5;for(let y=0;y<118;y++){const xo=px+y*.45;for(let x=Math.round(xo);x<xo+34;x++)if(x>=0&&x<W&&.4>bay(x,y))P(x,y,'#8a6038');}}
+  let rem=clamp(p*1.25,0,1)*CARVE.total,cur=null;
+  for(let i=0;i<CARVE.segs.length&&rem>0;i++){const [a,b,c,d]=CARVE.segs[i],l=CARVE.len[i],f=Math.min(1,rem/l),ex=a+(c-a)*f,ey=b+(d-b)*f;
+    L(a+1,b+1,ex+1,ey+1,'#9a7048');L(a,b,ex,ey,'#2a1608');rem-=l;cur={x:ex,y:ey};}
+  if(cur&&p<.8){L(cur.x,cur.y,cur.x+6,cur.y-10,'#c8ccd8');for(let w=0;w<2;w++)L(cur.x+6+w,cur.y-10,cur.x+14+w,cur.y-24,'#3a2a20');}
+}};
+
+function bikeFar(){return cached('bfar',()=>{for(let x=0;x<W;){const w=14+Math.floor(hash(x+11)*26),h=20+Math.floor(hash(x+23)*50);R(x,100-h,w,h,'#0f1526');
+  for(let yy=100-h+4;yy<96;yy+=6)for(let xx=x+2;xx<x+w-2;xx+=5)if(hash(xx*13+yy*7)>.72)R(xx,yy,2,2,hash(xx+yy)>.3?'#c89048':'#6a8ac0');x+=w+2;}});}
+function bikeMid(){return cached('bmid',()=>{for(let x=0;x<W;x+=3){const h=6+Math.floor((Math.sin(x*.09)+Math.sin(x*.23)+2)*4);R(x,104-h,3,h,'#0a0e1a');}
+  for(let k=0;k<5;k++){const tx=k*80+20;R(tx,62,3,42,'#0a0e1a');E(tx+1,58,12,10,'#0b101c');}});}
+S.bike={name:'夜路单车',defWx:'rain',duo:1,heads:[{x:200,y:83},{x:186,y:84}],cam:(p,t)=>({fx:200,fy:76+Math.sin(t*7)*.3,z:1.04}),draw(t,p,T,env){
+  const s=t*70;R(0,0,W,H,'#0a0e1a');GRAD(0,40,W,64,['#0a0e1a','#151d34']);
+  tile(bikeFar(),s*.25);tile(bikeMid(),s*.55);
+  R(0,104,W,40,'#131624');R(0,104,W,2,'#262c40');for(let x=-(s%40);x<W;x+=40)R(x,126,16,2,'#4a4e5a');
+  for(let k=-1;k<5;k++){const lx=k*120-(s%120)+60;R(lx,34,2,70,'#262c3a');R(lx-7,32,10,2,'#262c3a');R(lx-7,34,5,2,'#f0c878');CONE(lx-5,36,104,1,22,'#3a3428',.9);
+    for(let y=107;y<142;y+=2)R(lx-6+Math.sin(y*.7+t*5),y,4,1,(y-107)/35<hash(y+k*9)?'#5a4a30':'#2a2a2e');}
+  BIKE(196,118,t,env.duo);
+}};
+
+function seaStatic(){return cached('sea',()=>{
+  GRAD(0,0,W,92,['#05080f','#0c1226','#1a2240']);
+  GL(300,30,22,22,'#2a3048',.9);E(300,30,9,9,'#e8e4c8');E(303,28,2,2,'#c8c4a8');E(297,33,1,1,'#c8c4a8');
+  R(0,92,W,24,'#0a1224');R(0,92,W,1,'#24304c');
+  E(62,94,18,4,'#141824');for(let y=46;y<92;y++){const hw=3+Math.round((y-46)*.07);R(62-hw,y,hw*2+1,1,((y-46)>>3)%2?'#a8382e':'#d8d4c8');R(62+hw-1,y,2,1,'#6a6a70');}
+  R(57,40,11,6,'#f0e0a0');R(56,38,13,2,'#2a2a30');R(59,35,7,3,'#2a2a30');R(56,46,13,1,'#2a2a30');
+  R(0,114,W,30,'#262a36');R(0,114,W,2,'#3e4456');for(let x=0;x<W;x+=40)R(x,116,1,28,'#1c2029');R(0,129,W,1,'#1c2029');
+  for(let y=116;y<H;y++)for(let x=0;x<W;x++)if(hash(x*91+y*313)>.94)P(x,y,'#2e3240');
+});}
+function clouds(){return cached('cloud',()=>{
+  const cl=(cx,cy,sz)=>{E(cx,cy,sz*2.2,sz*.6,'#20263a');E(cx-sz,cy-sz*.4,sz*.9,sz*.7,'#20263a');E(cx+sz*.4,cy-sz*.6,sz*1.1,sz*.8,'#20263a');E(cx+sz*1.3,cy-sz*.2,sz*.8,sz*.6,'#20263a');
+    GL(cx,cy-sz*.7,sz*2.2,sz*.6,'#323a54',.7);};
+  cl(70,24,10);cl(220,18,8);cl(330,38,12);cl(150,50,7);
+});}
+function dayClouds(){return cached('dcloud',()=>{
+  const cl=(cx,cy,sz)=>{E(cx,cy,sz*2.4,sz*.55,'#f4f8fc');E(cx-sz,cy-sz*.45,sz,sz*.75,'#f4f8fc');E(cx+sz*.5,cy-sz*.7,sz*1.2,sz*.9,'#ffffff');E(cx+sz*1.4,cy-sz*.2,sz*.8,sz*.6,'#f4f8fc');
+    for(let y=Math.round(cy);y<cy+sz*.55;y++)for(let x=Math.round(cx-sz*2.3);x<cx+sz*2.3;x++)if(.5>bay(x,y))P(x,y,'#d6e2ee');};
+  cl(60,22,9);cl(210,14,7);cl(320,34,11);cl(140,46,6);
+});}
+S.sea={name:'海边夜晚',defWx:'none',duo:1,heads:[{x:186,y:98},{x:200,y:97}],cam:p=>({fx:200,fy:78,z:1+.14*ease(p)}),draw(t,p,T,env){
+  blit(seaStatic(),0,0);STARS(T,40,0,0,W,60,21);
+  tile(clouds(),-t*2);
+  for(let i=0;i<46;i++){const y=94+Math.floor(hash(i*3)*20),x=((hash(i*5)*W+t*(2+hash(i)*3))%W),l=3+Math.floor(hash(i*7)*8);R(x,y,l,1,'#1e2c48');}
+  for(let y=94;y<113;y+=2){const w=1+Math.floor(hash(Math.floor(T*4)*31+y)*6*(1-(y-94)/30));R(300-w,y,w*2,1,'#8a8a78');}
+  const dir=Math.sin(T*.7),ex=62+dir*300;
+  g.fillStyle='#d8d2a8';const N=Math.abs(ex-62)|0;for(let i=1;i<N;i++){const f=i/N,x=Math.round(62+(ex-62)*f),hw=1+f*6;for(let yy=Math.round(43-hw);yy<=43+hw;yy++)if(.22*(1-f)*(1-Math.abs(yy-43)/(hw+1))>bay(x,yy))g.fillRect(x,yy,1,1);}
+  GL(62,43,10,8,'#f8eab0',.5+.5*(1-Math.abs(dir)));
+  for(let x=0;x<W;x++)if(Math.sin(x*.3+T*2)>.75)P(x,113,'#5a6a88');
+  env.wx();
+  if(env.duo){SP(BACK_SIT,PA,180,100);SP(BACK_SIT_B,PB,193,99);}else SP(BACK_SIT,PA,186,100);
+}};
+
+function roofStatic(){return cached('roof',()=>{
+  GRAD(0,0,W,104,['#03050c','#080d22','#121a3e','#1e2650']);
+  for(let y=0;y<100;y++)for(let x=0;x<W;x++){const d=Math.abs((y-12)-(x-60)*.32)/(16+7*Math.sin(x*.05)),v=(1-d)*.5;if(v>bay(x,y))P(x,y,'#28325e');if(v>.25&&hash(x*13+y*7)>.9)P(x,y,'#c8d0f0');}
+  for(let i=0;i<150;i++)P(hash(i*3+7)*W,hash(i*5+9)*95,hash(i)>.7?'#e8ecff':'#6a76a0');
+  for(let x=0;x<W;){const w=8+Math.floor(hash(x*3+5)*20),h=10+Math.floor(hash(x*7+2)*26);R(x,112-h,w,h,'#0b0f1e');
+    for(let yy=112-h+3;yy<110;yy+=4)for(let xx=x+1;xx<x+w-1;xx+=3)if(hash(xx*31+yy*17)>.78)P(xx,yy,hash(xx+yy*3)>.3?'#d8a050':'#7090d0');x+=w+1;}
+  GL(200,112,230,16,'#2a2440',.6,0,92);
+  R(0,114,W,30,'#242834');R(0,112,W,3,'#3a3f4e');for(let x=0;x<W;x+=24)R(x,115,1,29,'#1c1f28');
+  R(318,70,30,26,'#1a1d28');R(316,68,34,3,'#262a36');for(const lx of [320,344])R(lx,96,2,16,'#14161e');L(320,104,346,98,'#14161e');
+  L(60,40,60,112,'#1e2230');L(54,60,66,60,'#1e2230');L(56,52,64,52,'#1e2230');
+});}
+S.rooftop={name:'天台星空',defWx:'meteor',duo:1,heads:[{x:186,y:98},{x:200,y:97}],cam:p=>({fx:200,fy:60+18*ease(p),z:1.1}),draw(t,p,T,env){
+  blit(roofStatic(),0,0);STARS(T,40,0,0,W,90,77);if(Math.sin(T*3)>0)P(60,39,'#ff4a3a');
+  env.wx();
+  if(env.duo){SP(BACK_SIT,PA,180,100);SP(BACK_SIT_B,PB,193,99);}else SP(BACK_SIT,PA,186,100);
+}};
+
+function trainSky(){return cached('trs',()=>{GRAD(70,22,260,66,['#2e3c6e','#6a74a6','#c89a8a','#e8b890']);E(260,62,8,8,'#f8d8a0');});}
+function trainFar(){return cached('trf',()=>{for(let x=0;x<W;x++){const h=14+Math.sin(x*.03)*6+Math.sin(x*.011+1)*8+Math.sin(x*.09)*2;R(x,76-h,1,h+14,'#4a5480');if(h>24)P(x,76-h,'#c8c8d8');}});}
+function trainMid(){return cached('trm',()=>{for(let x=0;x<W;x++){const h=6+Math.sin(x*.05+2)*3+Math.sin(x*.13)*2;R(x,80-h,1,h+10,'#2e3658');}
+  for(let k=0;k<7;k++){const tx=k*60+12;E(tx,72,6,7,'#222a46');R(tx-1,76,2,8,'#1a2038');}});}
+function trainInt(){return cached('tri',()=>{R(0,0,W,H,'#2b303e');R(0,0,W,8,'#3a3f4e');for(let x=10;x<W;x+=30)R(x,8,2,4,'#4a4e5a');R(0,11,W,2,'#4a4e5a');
+  R(62,16,276,78,'#6a6e7a');R(64,18,272,74,'#4a4e5a');g.clearRect(70,22,260,66);for(const [x,y] of [[70,22],[329,22],[70,87],[329,87]])R(x,y,1,1,'#4a4e5a');
+  R(56,94,288,5,'#7a7e8a');R(56,99,288,2,'#3a3e4a');R(0,101,W,43,'#353a4a');for(let x=0;x<W;x+=50)R(x,101,1,43,'#2b303e');
+  for(let y=22;y<88;y++)for(let x=70;x<330;x++){const d=(x-70)-(y-22)*.6;if(((d>40&&d<52)||(d>150&&d<156))&&.18>bay(x,y))P(x,y,'#9aa0b8');}});}
+S.train={name:'列车车窗',defWx:'none',indoor:1,duo:1,heads:[{x:170,y:57},{x:240,y:57}],cam:p=>({fx:200,fy:70,z:1.1-.08*ease(p)}),draw(t,p,T,env){
+  const s=t*60;blit(trainSky(),0,0);
+  clip(70,22,260,66,()=>{tile(trainFar(),s*.15);tile(trainMid(),s*.5);R(0,84,W,6,'#2a3a2e');
+    for(let x=-(s*1.4%12);x<W;x+=12)R(x+70,84,1,4,'#1e2a22');
+    for(let k=-1;k<5;k++){const px=70+k*110-(s*2.2%110);R(px,30,2,60,'#141822');R(px-4,32,10,1,'#141822');
+      for(let i=0;i<110;i+=2){const sag=Math.sin(i/110*Math.PI)*4;P(px+i,33+sag,'#1a1e2a');}}});
+  env.wx([70,22,260,66]);
+  blit(trainInt(),0,0);
+  SITTER(170,68,PA,144);if(env.duo)SITTER(240,68,PB,144);
+}};
+
+function stationBg(){return cached('stbg',()=>{
+  R(0,0,W,H,'#090d18');GRAD(0,18,W,30,['#090d18','#10162a']);
+  for(let i=0;i<30;i++)R(hash(i*3)*W,32+hash(i*7)*10,1,1,hash(i)>.4?'#a88040':'#5a7aa8');
+  R(0,0,W,16,'#1a1e2a');R(0,16,W,2,'#2a3040');for(let x=0;x<W;x+=50)R(x,0,3,18,'#12151f');
+  for(const x of [70,200,330]){L(x,18,x,24,'#3a3a40');R(x-3,24,7,2,'#2a2a30');R(x-2,26,5,1,'#f0d088');GL(x,34,26,14,'#232632',.8);}
+  R(0,96,W,10,'#14161e');for(let x=0;x<W;x+=5)R(x,100,3,3,'#1e2028');R(0,99,W,1,'#5a5a66');R(0,103,W,1,'#5a5a66');
+  R(0,106,W,38,'#242833');R(0,106,W,2,'#3a3f4e');for(let x=0;x<W;x+=8)R(x,110,5,1,'#b8a040');
+  for(let y=112;y<H;y+=8)R(0,y,W,1,'#20232d');
+  for(const x of [70,200,330])GL(x,128,40,10,'#2e3240',.8,0,108);
+});}
+function stationFg(){return cached('stfg',()=>{for(const x of [36,356]){R(x,18,8,116,'#1c1f28');R(x,18,1,116,'#2e3240');R(x-2,130,12,4,'#14161e');}});}
+S.station={name:'月台离别',defWx:'rain',heads:[{x:201,y:100},{x:285,y:56}],bubWin:[.06,.32],cam:p=>({fx:205-25*ease(p),fy:76,z:1.05}),draw(t,p,T,env){
+  blit(stationBg(),0,0);
+  const tx=20-Math.pow(Math.max(0,p-.35),2)*2600;
+  for(let k=0;k<5;k++){const cx=tx+k*170;if(cx>W||cx<-170)continue;
+    R(cx,46,164,52,'#35566a');R(cx+2,42,160,4,'#2a3e4e');R(cx,46,164,1,'#4a6a7e');R(cx,80,164,4,'#d8c890');R(cx,92,164,6,'#1e2a34');
+    for(let w=0;w<5;w++){const wx=cx+8+w*26;R(wx-1,53,20,18,'#22343e');R(wx,54,18,16,'#e2b868');R(wx,54,18,5,'#eecb80');
+      if(k===1&&w===3){E(wx+9,63,3,4,'#3a2418');R(wx+4,66,10,4,'#3a2418');R(wx+13,59,2,4,'#3a2418');}
+      else if(hash(k*31+w*7)>.6)R(wx+3+Math.floor(hash(k+w)*10),60,4,10,'#5a3a22');}
+    R(cx+150,56,10,28,'#2a4250');R(cx+20,98,10,3,'#0c0c10');R(cx+130,98,10,3,'#0c0c10');}
+  env.wx([0,18,W,88]);
+  SP(BACK_STAND,PA,196,108);UMBRELLA(201,104,15);
+  blit(stationFg(),0,0);
+}};
+
+const SIGNS=[{x:40,y:30,w:10,h:30,c:'#ff4fa0'},{x:96,y:46,w:34,h:12,c:'#4ff0ff'},{x:150,y:22,w:12,h:36,c:'#ffd24f'},{x:236,y:40,w:40,h:12,c:'#ff6a4f'},{x:300,y:24,w:10,h:34,c:'#4ff0ff'},{x:334,y:54,w:30,h:10,c:'#ff4fa0'}];
+function neonStatic(){return cached('neon',()=>{
+  R(0,0,W,H,'#08050f');GRAD(0,0,W,40,['#04020a','#120a24']);
+  for(let x=0;x<W;){const w=40+Math.floor(hash(x+3)*30),h=76+Math.floor(hash(x+9)*30),top=112-h,col=hash(x)>.5?'#120c1e':'#161026';R(x,top,w,h,col);
+    for(let yy=top+6;yy<108;yy+=8)for(let xx=x+4;xx<x+w-6;xx+=7)R(xx,yy,4,4,hash(xx*7+yy*3)>.8?'#c89050':'#1e1630');x+=w+2;}
+  R(0,112,W,32,'#0e0a16');R(0,112,W,2,'#2a2236');for(let y=118;y<H;y+=7)R(0,y,W,1,'#130e1e');
+});}
+S.neon={name:'霓虹街头',defWx:'rain',duo:1,heads:[{x:201,y:100},{x:214,y:99}],cam:p=>({fx:185+30*ease(p),fy:72,z:1.06}),draw(t,p,T,env){
+  blit(neonStatic(),0,0);
+  SIGNS.forEach((s,i)=>{const on=Math.sin(T*6+i*5)>-.92||Math.sin(T*1.3+i)>.5,dim=mix(s.c,'#000000',.55);if(!on)return;
+    GL(s.x+s.w/2,s.y+s.h/2,s.w*.9+6,s.h*.9+6,dim,.6);R(s.x,s.y,s.w,s.h,'#0a0612');R(s.x,s.y,s.w,1,s.c);R(s.x,s.y+s.h-1,s.w,1,s.c);R(s.x,s.y,1,s.h,s.c);R(s.x+s.w-1,s.y,1,s.h,s.c);
+    const vert=s.h>s.w;for(let k=0;k<(vert?Math.floor(s.h/8):Math.floor(s.w/8));k++){const gx=vert?s.x+3:s.x+3+k*8,gy=vert?s.y+3+k*8:s.y+3;R(gx,gy,vert?s.w-6:5,vert?5:s.h-6,s.c);}
+    for(let y=115;y<H;y+=2){const sh=Math.sin(y*.8+T*4+i)*1.5;if((H-y)/30>bay(Math.round(s.x+s.w/2+sh),y)*1.4)R(s.x+s.w*.2+sh,y,s.w*.6,1,dim);}});
+  for(let k=0;k<4;k++){const dir=k%2?1:-1,x=((T*(9+k*3)*dir+k*110)%(W+40)+W+40)%(W+40)-20,y=108+(k%2)*2+(Math.floor(T*4+k)%2);SP(BACK_STAND,PAL_SHADOW,x,y);}
+  env.wx();
+  if(env.duo){SP(BACK_STAND,PA,196,108);SP(BACK_STAND_B,PB,209,107);UMBRELLA(207,103,19);}else{SP(BACK_STAND,PA,196,108);UMBRELLA(201,104,15);}
+}};
+
+function cafeStatic(){return cached('cafe',()=>{
+  R(0,0,W,H,'#2e211c');for(let x=0;x<W;x+=20)R(x,0,1,H,'#281c17');
+  R(116,10,218,90,'#1c120e');GRAD(120,14,210,80,['#0a0e1c','#141a30','#1c2034']);
+  for(let i=0;i<26;i++){const x=126+hash(i*3)*198,y=40+hash(i*5)*48,r=2+Math.floor(hash(i*7)*4),c=['#c88a40','#b84a3a','#5a9a6a','#d8c070','#6a8ad0'][i%5];GL(x,y,r+1,r+1,c,.75,120,14,329,93);}
+  R(224,14,3,80,'#1c120e');
+  R(104,96,240,4,'#6a4630');R(104,100,240,44,'#3a2618');for(let x=110;x<340;x+=46)R(x,104,1,36,'#2e1e12');
+  R(248,88,8,8,'#e8e4dc');R(256,90,2,3,'#e8e4dc');R(246,96,12,1,'#c8c4bc');R(249,88,6,1,'#5a3a26');
+  R(296,86,10,10,'#8a4a30');for(let i=0;i<12;i++)P(296+hash(i*3)*10,78+hash(i*5)*9,i%2?'#4a8a4a':'#5aa05a');
+  L(70,0,70,20,'#1a1210');for(let i=0;i<6;i++)R(66-i,20+i,9+i*2,1,'#c88a40');
+  GL(70,40,60,40,'#3e2a22',.85);CONE(70,26,100,4,32,'#5a4030',.55);
+});}
+S.cafe={name:'街角咖啡馆',defWx:'rain',indoor:1,heads:[{x:200,y:50}],cam:p=>({fx:190+20*ease(p),fy:72,z:1.08}),draw(t,p,T,env){
+  blit(cafeStatic(),0,0);env.wx([120,14,210,80]);R(224,14,3,80,'#1c120e');
+  for(let i=0;i<6;i++){const ph=((t*.6+i/6)%1),y=86-ph*16,x=252+Math.sin(ph*6+i)*2;if(ph<.85&&.6*(1-ph)>bay(Math.round(x),Math.round(y)))P(x,y,'#c8c0b8');}
+  SITTER(200,62,PA,124);R(186,124,28,3,'#5a3a26');R(190,127,2,17,'#3a2618');R(208,127,2,17,'#3a2618');
+}};
+
+function flowerStatic(){return cached('flw',()=>{
+  GRAD(0,0,W,86,['#5a8ad0','#9cc0ea','#dfe8ee']);GL(312,28,40,36,'#f4f0d8',.7);E(312,28,9,9,'#fff8e0');
+  for(let x=0;x<W;x++){const y=Math.round(74+Math.sin(x*.02)*6+Math.sin(x*.05+2)*3);R(x,y,1,86-y,'#8aaec4');}
+  for(let x=0;x<W;x++){const y=Math.round(82+Math.sin(x*.03+1)*3);R(x,y,1,6,'#6aa070');}
+  R(0,86,W,58,'#3f7d45');for(let y=86;y<H;y++)for(let x=0;x<W;x++)if(hash(x*17+y*131)>.8)P(x,y,y%3?'#4a8c4e':'#356c3c');
+});}
+const FLOWER_COLS=['#f4a0b8','#ffffff','#f8d860','#c8a0e8','#f06080','#ffb070'];
+function flowers(T,y0,y1){for(let i=0;i<620;i++){const yy=86+Math.pow(hash(i*5+1),.75)*58;if(yy<y0||yy>=y1)continue;const x=hash(i*3+2)*W+Math.sin(T*1.5+i*.7)*((yy-86)/58*1.6);
+  const c=FLOWER_COLS[i%FLOWER_COLS.length];if(yy>118)R(x,yy,2,2,c);else P(x,yy,c);}}
+S.flowers={name:'花海',defWx:'sakura',duo:1,heads:[{x:181,y:106},{x:195,y:105}],cam:p=>({fx:200,fy:74,z:1.04+.08*ease(p)}),draw(t,p,T,env){
+  blit(flowerStatic(),0,0);tile(dayClouds(),-t*3);flowers(T,86,122);
+  if(env.duo){SP(BACK_STAND,PA,176,108);SP(BACK_STAND_B,PB,190,107);}else SP(BACK_STAND,PA,183,108);
+  flowers(T,122,H);env.wx();
+}};
+
+function hillStatic(){return cached('hill',()=>{
+  GRAD(0,0,W,112,['#3a74c4','#78ace6','#cfe4f4']);GL(70,26,30,26,'#eef4f0',.6);E(70,26,9,9,'#fff4c8');
+  E(90,122,150,26,'#8ab4a8');E(330,124,160,30,'#7aa898');
+  for(let x=0;x<W;x++){const y=Math.round(100+((x-200)/220)**2*30);R(x,y,1,H-y,'#5c9c4c');P(x,y,'#7cbc5c');for(let yy=y+4;yy<H;yy++)if(.25>bay(x,yy)&&hash(x*7+yy*13)>.4)P(x,yy,'#4a8a40');}
+  R(314,84,4,22,'#4a3420');E(316,76,16,11,'#3e7a34');E(304,82,10,7,'#3e7a34');E(328,82,10,7,'#3e7a34');GL(312,72,14,8,'#5a9a44',.6);
+});}
+S.hill={name:'山坡风筝',defWx:'none',duo:1,heads:[{x:186,y:87},{x:200,y:86}],cam:p=>({fx:200,fy:66+10*ease(p),z:1.08}),draw(t,p,T,env){
+  blit(hillStatic(),0,0);tile(dayClouds(),-t*4);
+  const kx=252+Math.sin(T*.7)*14,ky=32+Math.cos(T*.9)*6;
+  for(let j=0;j<12;j++)P(kx+Math.sin(T*3+j*.6)*1.5-j*.4,ky+6+j*1.4,j%2?'#f0f0f0':'#e04040');
+  L(190,92,kx,ky+5,'#f4f4f4');for(let r=0;r<6;r++){R(kx-r,ky-5+r,r*2+1,1,'#e04040');R(kx-r,ky+5-r,r*2+1,1,'#c03030');}
+  for(let i=0;i<30;i++){const x=hash(i*9)*W,y=Math.round(100+((x-200)/220)**2*30);P(x+Math.sin(T*2+i),y-1,'#8ccc6a');}
+  env.wx();
+  if(env.duo){SP(BACK_SIT,PA,180,88);SP(BACK_SIT_B,PB,193,87);}else SP(BACK_SIT,PA,186,88);
+}};
+
+function pine(x,base,h,w,c){for(let yy=0;yy<h;yy++){const hw=Math.floor((yy/h)*w*(1-((yy%7)/14)));R(x-hw,base-h+yy,hw*2+1,1,c);}R(x-1,base,3,5,c);}
+function forestStatic(){return cached('forest',()=>{
+  GRAD(0,0,W,116,['#03060a','#08121a','#0e1e24']);GL(96,24,16,16,'#1a2a30',.8);E(96,24,6,6,'#d8e0c8');
+  for(let i=0;i<22;i++)pine(i*19+hash(i)*10,106,26+hash(i*3)*22,8,'#0c1a20');
+  GL(200,104,240,10,'#15262a',.55);
+  for(let i=0;i<11;i++)pine(i*40+hash(i*5)*18,114,44+hash(i*7)*24,13,'#08131a');
+  R(0,112,W,32,'#070e10');for(let y=112;y<H;y++){const hw=10+(y-112)*2.2;R(200-hw,y,hw*2,1,'#121e1e');}
+  for(const x of [14,384]){R(x-6,0,12,144,'#040809');E(x,6,26,16,'#050a0b');}
+});}
+S.forest={name:'萤火森林',defWx:'fireflies',duo:1,heads:[{x:195,y:102},{x:209,y:101}],cam:p=>({fx:200,fy:72,z:1.1-.06*ease(p)}),draw(t,p,T,env){
+  blit(forestStatic(),0,0);
+  if(env.duo){SP(BACK_STAND,PA,190,105);SP(BACK_STAND_B,PB,204,104);}else SP(BACK_STAND,PA,195,105);
+  env.wx();
+}};
+
+S.cry={name:'特写·泪',defWx:'rain',heads:[{x:200,y:40}],cam:p=>({fx:200,fy:80,z:1+.15*ease(p)}),draw(t,p,T,env){
+  R(0,0,W,H,'#0d1324');env.wx();
+  GL(130,60,90,90,'#141c34',.9);
+  E(200,152,60,34,PA.u);for(let y=118;y<H;y++)for(let x=200;x<262;x++)if((x-200)/60>bay(x,y))P(x,y,PA.U);
+  L(188,118,200,132,PA.U);L(212,118,200,132,PA.U);
+  R(189,100,22,22,'#b07a5e');
+  E(200,64,32,32,PA.k);
+  E(175,84,4,6,'#d49a78');E(225,84,4,6,'#b07a5e');
+  E(200,84,25,28,'#e0a884');
+  for(let y=56;y<112;y++)for(let x=206;x<226;x++){const dx=(x-200)/25,dy=(y-84)/28;if(dx*dx+dy*dy<1&&(x-206)/22>bay(x,y))P(x,y,'#c48e6c');}
+  for(let x=172;x<229;x++){const tip=((x>>2)&1)?5:0,b=67+tip+Math.floor(hash(x)*2);R(x,40,1,b-40,PA.k);}
+  GL(178,60,16,20,'#2a3a60',.6,170,40,190,90);
+  L(183,75,193,73,'#14141c');L(207,73,217,75,'#14141c');
+  const blink=(T%4.2)<.14;
+  if(blink){R(185,82,7,1,'#14141c');R(208,82,7,1,'#14141c');}
+  else{R(185,79,6,5,'#14141c');P(186,79,'#ffffff');P(187,80,'#ffffff');R(209,79,6,5,'#14141c');P(210,79,'#ffffff');P(211,80,'#ffffff');}
+  R(185,85,6,1,'#9ec4f0');R(209,85,6,1,'#9ec4f0');
+  GL(187,91,6,3,'#e8907e',.7);GL(213,91,6,3,'#e8907e',.7);
+  P(201,90,'#b07a5e');P(200,92,'#b07a5e');
+  const wob=Math.sin(T*9)>0;R(196,99,8,1,'#8a4a40');if(wob){P(195,100,'#8a4a40');P(204,100,'#8a4a40');}
+  const grow=Math.min(1,p*3);R(186,86,1,Math.round(4+12*grow),'#8ab4e8');R(213,86,1,Math.round(3+10*grow),'#8ab4e8');
+  for(const [x,o] of [[186,0],[213,.5]]){const y=86+((T*12+o*22)%24);E(x,y,1,1.5,'#c8e0ff');}
+}};
+
+function snowStatic(){return cached('snow',()=>{
+  GRAD(0,0,W,112,['#0a0d1a','#121a30','#1e2742']);
+  for(let x=0;x<W;){const w=50+Math.floor(hash(x+3)*30),h=60+Math.floor(hash(x+9)*40),top=112-h,col=hash(x)>.5?'#161b2c':'#1a2034';R(x,top,w,h,col);R(x,top,w,2,'#c8d2e6');R(x-1,top+2,w+2,1,'#2a3048');
+    for(let yy=top+8;yy<104;yy+=14)for(let xx=x+6;xx<x+w-8;xx+=13){const lit=hash(xx*7+yy*3)>.5;R(xx,yy,7,9,lit?'#d89a50':'#0c1020');P(xx,yy,col);P(xx+6,yy,col);if(lit)R(xx,yy+7,7,2,'#b87a3a');R(xx-1,yy+9,9,1,'#c8d2e6');}
+    x+=w+2;}
+  R(0,112,W,32,'#b8c2d8');for(let y=112;y<122;y++)for(let x=0;x<W;x++)if(.5*(1-(y-112)/10)>bay(x,y))P(x,y,'#8e9ab8');
+  for(let i=0;i<22;i++){const x=i*10,y=127+Math.round(Math.sin(i*.8));R(x,y+(i%2)*2,2,1,'#7e8aa8');}
+  R(235,52,2,62,'#1a1e28');R(231,46,10,7,'#2a2e3a');R(233,48,6,4,'#f8dc98');R(230,45,12,1,'#c8d2e6');
+  CONE(236,53,128,2,36,'#4a4a52',.6);GL(236,50,18,14,'#c8b088',.5);GL(236,125,42,8,'#f4e4c0',.9,0,112);
+});}
+S.snow={name:'雪夜重逢',defWx:'snow',heads:[{x:223,y:101}],cam:p=>({fx:180+40*ease(p),fy:78,z:1.06}),draw(t,p,T,env){
+  blit(snowStatic(),0,0);
+  SP(BACK_STAND,PAL_OLD,218,104);R(219,111,3,1,'#e8eef8');R(224,111,3,1,'#e8eef8');R(221,104,3,1,'#e8eef8');
+  const ph=(t%3.5)/3.5;if(ph<.5)GL(228+ph*10,106-ph*8,2+ph*5,2+ph*4,'#c8d0e0',(1-ph*2)*.8);
+}};
+
+// 下拉框里的场景顺序
+const SCENE_ORDER=['title','roomN','roomD','corridor','classroom','desk','bike','sea','rooftop','train','station','neon','cafe','flowers','hill','forest','cry','snow','end'];
+
+// ================== 按歌词自动分镜 ==================
+const MOODS={
+  sad:{name:'伤感',pal:'night',wx:'rain',w:['泪','哭','离开','想念','再见','遗憾','孤单','寂寞','心碎','痛','难过','分手','失去','放手','错过','伤','一个人','沉默','忘记','回不去','可惜','tears','cry','goodbye','miss','lonely']},
+  nostalgic:{name:'怀旧',pal:'dusk',wx:'none',w:['从前','那年','青春','曾经','回忆','记得','旧','少年','当年','小时候','那时','过去','时光','岁月','毕业','名字','remember','memory']},
+  city:{name:'都市',pal:'neon',wx:'rain',w:['城市','霓虹','街','深夜','酒','喧嚣','人海','人群','繁华','灯火','都市','夜色','city','neon']},
+  hope:{name:'希望',pal:'dawn',wx:'none',w:['明天','希望','天亮','清晨','未来','勇敢','梦想','出发','黎明','光芒','hope','tomorrow']},
+  happy:{name:'甜蜜',pal:'summer',wx:'none',w:['笑','快乐','甜','喜欢','拥抱','幸福','温暖','阳光','开心','可爱','牵手','陪','love','smile','happy']},
+  summer:{name:'夏日',pal:'summer',wx:'none',w:['夏天','夏','海','蝉','汽水','蓝天','晴天','冰','summer']},
+  winter:{name:'冬日',pal:'snow',wx:'snow',w:['雪','冬','寒','雪花','圣诞','snow','winter']},
+  spring:{name:'春日',pal:'dawn',wx:'sakura',w:['花','春','樱','蝴蝶','温柔','微风','spring','flower']},
+  dream:{name:'梦幻',pal:'night',wx:'meteor',w:['星','宇宙','梦','银河','月','夜空','流星','许愿','star','dream','moon']},
+};
+const WXKW={rain:['雨','淋','伞','潮湿','rain'],snow:['雪','snow'],sakura:['樱','花瓣','落花'],leaves:['秋','落叶','枫'],fireflies:['萤火','夏夜','虫鸣'],meteor:['流星','许愿','银河','星空']};
+const TAGS={
+  roomN:{m:['sad','nostalgic'],w:['房间','深夜','失眠','灯','窗','一个人','孤单','寂寞','晚安','想你','想念','睡不着','电话','消息','夜','等你']},
+  roomD:{m:['hope'],w:['清晨','天亮','早安','醒','阳光','明天','新的','晨','morning']},
+  corridor:{m:['nostalgic'],w:['黄昏','夕阳','放学','学校','校园','少年','同学','傍晚','走廊','青春','那年','毕业']},
+  classroom:{m:['nostalgic','summer'],w:['教室','黑板','上课','老师','同桌','校服','考试','青春','午后','课本','作业','school']},
+  desk:{m:['nostalgic'],w:['名字','刻在','刻下','写下','写信','课桌','铅笔','信','秘密','日记','记得','name']},
+  bike:{m:['happy','nostalgic'],w:['单车','自行车','骑','后座','风','奔跑','追','路灯','一起','路上','run']},
+  sea:{m:['sad','summer','nostalgic'],w:['海','浪','沙滩','岸','潮','灯塔','月光','月亮','海边','远方','sea','ocean','moon']},
+  rooftop:{m:['dream','happy'],w:['星','星星','天空','夜空','宇宙','许愿','银河','流星','天台','梦','star','sky','dream']},
+  train:{m:['nostalgic','sad'],w:['窗外','风景','旅行','列车','地铁','经过','路过','时光','匆匆','远行','一路','车窗','train']},
+  station:{m:['sad'],w:['车站','火车','月台','离开','再见','告别','送别','分开','走了','离别','goodbye','leave']},
+  neon:{m:['city'],w:['城市','霓虹','街头','街','酒','喧嚣','人群','人海','繁华','灯火','都市','迷失','city','neon']},
+  cafe:{m:['sad','city'],w:['咖啡','等待','街角','午后','下午','对面','座位','窗边','等待','雨天','coffee','wait']},
+  flowers:{m:['happy','spring'],w:['花','花海','春天','蝴蝶','草','浪漫','微笑','温柔','春','花开','flower','spring']},
+  hill:{m:['happy','hope','summer'],w:['云','风筝','山','草地','自由','飞翔','飞向','晴天','蓝天','未来','山坡','fly','free','cloud']},
+  forest:{m:['summer','dream'],w:['森林','萤火','夏夜','树','小路','童年','山林','虫','forest','firefly']},
+  cry:{m:['sad'],w:['泪','哭','眼泪','心碎','痛','难过','伤心','委屈','心疼','tears','cry']},
+  snow:{m:['winter','sad'],w:['雪','冬','重逢','好久不见','白头','多年','以后','老了','终于','snow','winter']},
+};
+const AMBIENT=['rooftop','train','sea','hill','neon','forest','flowers','roomN'];
+const count=(txt,w)=>{let n=0,i=0;while((i=txt.indexOf(w,i))>=0){n++;i+=w.length;}return n;};
+const norm=s=>s.toLowerCase().replace(/[\s，。,.!！?？、~…“”"'‘’\-—]/g,'');
+function topWx(txt){let best=null,bn=0;for(const [k,arr] of Object.entries(WXKW)){const n=arr.reduce((a,w)=>a+count(txt,w),0);if(n>bn){bn=n;best=k;}}return [best,bn];}
+
+function segment(lyr,D){
+  const segs=[],first=lyr.length?lyr[0].t:D;
+  let introEnd=clamp(first,6,12);if(introEnd>D-8)introEnd=Math.max(4,D*.25);
+  segs.push({kind:'intro',s:0,e:introEnd,lines:[]});
+  let t=introEnd;
+  if(first-t>=4){segs.push({kind:'inst',s:t,e:first,lines:[]});t=first;}
+  const avg=lyr.length>1?clamp((lyr[lyr.length-1].t-lyr[0].t)/(lyr.length-1),2,6):4;
+  let cur=null;
+  for(let i=0;i<lyr.length;i++){const l=lyr[i],last=i===lyr.length-1,nt=last?D:lyr[i+1].t,lineEnd=Math.min(nt,l.t+avg*1.4);
+    if(!cur)cur={kind:'lyric',s:t,lines:[]};
+    cur.lines.push(l.s);
+    const gap=nt-lineEnd,len=nt-cur.s;
+    if(last||gap>=4||(len>=10&&(nt-l.t>=avg*1.15||len>=15))||len>=20){
+      if(!last&&gap>=4){cur.e=lineEnd;segs.push(cur);segs.push({kind:'inst',s:lineEnd,e:nt,lines:[]});}
+      else{cur.e=last?lineEnd:nt;segs.push(cur);}
+      cur=null;t=nt;}
+  }
+  const tail=segs[segs.length-1];
+  if(D-tail.e>=4)segs.push({kind:'outro',s:tail.e,e:D,lines:[]});
+  else{const os=Math.max(tail.s+3,D-6);tail.e=os;segs.push({kind:'outro',s:os,e:D,lines:[]});}
+  // 太长的间奏拆成两段
+  for(let i=0;i<segs.length;i++){const sg=segs[i];if(sg.kind==='inst'&&sg.e-sg.s>24){const m=(sg.s+sg.e)/2;segs.splice(i+1,0,{kind:'inst',s:m,e:sg.e,lines:[]});sg.e=m;}}
+  return segs.filter(sg=>sg.e-sg.s>.5);
+}
+function autoBoard(L,D){
+  const lyr=L.filter(l=>l.s&&l.t>=0&&l.t<D-2);
+  const all=lyr.map(l=>l.s).join('\n').toLowerCase();
+  const ms=Object.entries(MOODS).map(([k,m])=>[k,m.w.reduce((a,w)=>a+count(all,w),0)]).sort((a,b)=>b[1]-a[1]);
+  const mood=ms[0][1]>0?ms[0][0]:'sad',mood2=ms[1][1]>0?ms[1][0]:null;
+  const [sw,swn]=topWx(all),songWx=swn>=2?sw:null;
+  const segs=segment(lyr,D),used={};let prev=null;
+  segs.forEach((sg,i)=>{
+    const txt=sg.lines.join('\n').toLowerCase();
+    if(sg.kind==='intro')sg.scene='title';
+    else if(sg.kind==='outro')sg.scene='end';
+    else{
+      const rep=sg.lines.length?segs.slice(0,i).find(o=>o.lines.length&&sg.lines.filter(x=>o.lines.some(y=>norm(y)===norm(x))).length>=sg.lines.length*.6):null;
+      if(rep&&rep.scene!==prev){sg.scene=rep.scene;sg.chorus=true;}
+      else{let best=null,bs=-1e9;
+        for(const [id,tg] of Object.entries(TAGS)){
+          let sc=tg.w.reduce((a,w)=>a+count(txt,w)*3+count(all,w)*.25,0);
+          if(tg.m.includes(mood))sc+=2;if(mood2&&tg.m.includes(mood2))sc+=1;
+          if(sg.kind==='inst')sc+=AMBIENT.includes(id)?1.5:-3;
+          if(id==='cry'&&!/泪|哭|tears|cry/.test(txt))sc-=2;
+          sc-=(used[id]||0)*2.6;if(id===prev)sc-=100;sc+=hash(i*131+id.length*17+id.charCodeAt(0))*.6;
+          if(sc>bs){bs=sc;best=id;}}
+        sg.scene=best;}
+    }
+    used[sg.scene]=(used[sg.scene]||0)+1;prev=sg.scene;
+    const def=S[sg.scene],[w]=topWx(txt);
+    sg.wx=w||songWx||(def.defWx==='mood'?MOODS[mood].wx:def.defWx);
+    if(def.indoor&&sg.wx==='meteor')sg.wx='none';
+    sg.duo=!!def.duo&&!/一个人|孤单|独自|寂寞|alone/.test(txt);
+    sg.pal='';sg.bub='';sg.who='A';
+  });
+  const kw={};for(const tg of Object.values(TAGS))for(const w of tg.w){const n=count(all,w);if(n)kw[w]=Math.max(kw[w]||0,n);}
+  const top=Object.entries(kw).filter(([w])=>!Object.keys(kw).some(o=>o!==w&&o.length>w.length&&o.includes(w))).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  return {segs,mood,mood2,songWx,top};
+}
+// 为《刻在我心底的名字》手工设计的经典分镜
+const CLASSIC=[['title',7,'rain'],['roomN',11,'rain'],['corridor',11,'none','放学后……要不要去海边？ / ……好啊。','A'],['bike',11,'rain','抓紧了，要下坡了！ / 你骑慢一点啦——！','A'],
+  ['sea',12,'none','如果有一天，我们走散了呢？ / 那我会一直记得你的名字。','B'],['desk',7,'none'],['station',10,'rain','到了那边，我会写信给你。','B'],['cry',8,'rain'],['snow',9,'snow','……好久不见。','A'],['roomD',8,'none'],['end',6,'rain']];
+function classicBoard(D){const tot=CLASSIC.reduce((a,c)=>a+c[1],0);let acc=0;
+  return {segs:CLASSIC.map(([scene,w,wx,bub='',who='A'])=>{const s=acc;acc+=w/tot*D;return {kind:'classic',s,e:acc,lines:[],scene,wx,duo:!!S[scene].duo,pal:'',bub,who};}),mood:null};}
+
+// ---------- 分镜状态 ----------
+const SB={mode:'auto',segs:[],mood:null,info:null,lastD:0};
+const opt={title:'',artist:'',credits:'',endLine:'',offset:0,bubbles:true,titleCard:true,pal:'auto',wx:'auto'};
+let LYR=[];
+function rebuildSB(force){const D=dur();
+  if(SB.mode==='custom'&&!force){if(SB.lastD&&Math.abs(SB.lastD-D)>.01){const k=D/SB.lastD;SB.segs.forEach(s=>{s.s*=k;s.e*=k;});SB.lastD=D;renderSB();}return;}
+  const hasLyr=LYR.some(l=>l.s);
+  const b=(SB.mode==='classic'||!hasLyr)?classicBoard(D):autoBoard(LYR,D);
+  SB.segs=b.segs;SB.info=b.mood?b:null;SB.lastD=D;renderSB();}
+function moodPal(){return SB.info?MOODS[SB.info.mood].pal:'orig';}
+function segPal(sg){return sg.pal||(opt.pal==='auto'?(SB.mode==='classic'||!SB.info?'orig':moodPal()):opt.pal);}
+function segWx(sg){return opt.wx==='auto'?sg.wx:opt.wx;}
+function segAt(T){const a=SB.segs;for(let i=0;i<a.length;i++)if(T<a[i].e||i===a.length-1)return i;return 0;}
+
+// ---------- 合成与文字 ----------
+const vig=document.createElement('canvas');vig.width=OW;vig.height=OH-2*BAR;
+{const v=vig.getContext('2d'),gr=v.createRadialGradient(OW/2,vig.height/2,vig.height*.35,OW/2,vig.height/2,OW*.62);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,'rgba(0,0,0,.45)');v.fillStyle=gr;v.fillRect(0,0,OW,vig.height);}
+function dur(){return (audio.src&&isFinite(audio.duration)&&audio.duration>0)?audio.duration:Math.max(30,+document.getElementById('dur').value||270);}
+
+function drawBubble(x,y,text,age,left){
+  const chars=[...text],s=chars.slice(0,Math.min(chars.length,Math.floor(age*14)+1)).join('');
+  ctx.font=`700 34px ${SANS}`;const pw=ctx.measureText(text).width+44,ph=62;
+  const bx=clamp(x-pw*.3,20,OW-pw-20),by=Math.max(BAR+12,y-ph-22),tx=clamp(x,bx+10,bx+pw-28);
+  ctx.globalAlpha=Math.min(1,age*5,left*4);ctx.fillStyle='#f3efe4';
+  ctx.fillRect(bx+6,by,pw-12,ph);ctx.fillRect(bx,by+6,pw,ph-12);ctx.fillRect(tx-6,by+ph,18,6);ctx.fillRect(tx-6,by+ph+6,12,6);ctx.fillRect(tx-6,by+ph+12,6,6);
+  ctx.fillStyle='#16161c';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(s,bx+22,by+ph/2+2);ctx.globalAlpha=1;}
+function drawTitle(lt,ld){const a=clamp((lt-1.4)/1.6,0,1)*clamp((ld-lt-.4)/1.4,0,1);if(a<=0)return;
+  const gr=ctx.createLinearGradient(0,0,900,0);gr.addColorStop(0,'rgba(0,0,0,.45)');gr.addColorStop(1,'rgba(0,0,0,0)');ctx.globalAlpha=a;ctx.fillStyle=gr;ctx.fillRect(0,BAR,900,OH-2*BAR);
+  ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillStyle='#f4f2ec';
+  ctx.letterSpacing='10px';ctx.font=`900 104px ${SERIF}`;ctx.fillText(opt.title,150,650);
+  ctx.letterSpacing='6px';ctx.font=`600 42px ${SERIF}`;ctx.fillText(opt.artist,154,722);
+  ctx.letterSpacing='2px';ctx.font=`400 24px ${SANS}`;ctx.fillStyle='rgba(244,242,236,.72)';ctx.fillText(opt.credits,156,772);
+  ctx.letterSpacing='0px';ctx.globalAlpha=1;}
+function drawEnd(lt,ld){const a=clamp((lt-ld*.35)/1.5,0,1)*clamp((ld-lt-.3)/1.2,0,1);if(a<=0||!opt.endLine)return;
+  ctx.globalAlpha=a;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#ece8de';ctx.letterSpacing='6px';ctx.font=`600 44px ${SERIF}`;ctx.fillText(opt.endLine,OW/2,OH/2);ctx.letterSpacing='0px';ctx.globalAlpha=1;}
+function drawLyric(T){const t=T-opt.offset;let i=-1;for(let k=0;k<LYR.length;k++){if(LYR[k].t<=t)i=k;else break;}if(i<0)return;
+  const ln=LYR[i],end=Math.min(LYR[i+1]?LYR[i+1].t:Infinity,ln.t+9);if(t>=end||!ln.s)return;
+  ctx.globalAlpha=clamp(Math.min((t-ln.t)/.25,(end-t)/.25),0,1);ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#f2f2f2';
+  ctx.letterSpacing='3px';ctx.font=`500 46px ${SANS}`;ctx.fillText(ln.s,OW/2,OH-BAR/2+2);ctx.letterSpacing='0px';ctx.globalAlpha=1;}
+function bubbleList(sg,def){const parts=(sg.bub||'').split('/').map(s=>s.trim()).filter(Boolean);if(!parts.length)return [];
+  const [a0,b0]=def.bubWin||[.18,.86],n=parts.length,span=(b0-a0)/n;
+  return parts.map((t,k)=>({a:a0+k*span+(n>1&&k?.04:0),b:a0+(k+1)*span-(n>1?.04:0),t,who:(sg.who==='B')!==(k%2===1)?'B':'A'}));}
+
+let curSeg=-1;
+function render(T){
+  const D=dur();T=clamp(T,0,D-.001);if(!SB.segs.length)rebuildSB();
+  const i=segAt(T),sg=SB.segs[i],def=S[sg.scene]||S.title,lt=T-sg.s,ld=Math.max(.01,sg.e-sg.s),p=clamp(lt/ld,0,1);
+  if(i!==curSeg){curSeg=i;document.querySelectorAll('#sbBody tr').forEach((r,k)=>r.classList.toggle('on',k===i));}
+  const kind=segWx(sg),env={duo:sg.duo,done:false,wx(r){this.done=true;if(r===null||kind==='none')return;if(r)clip(r[0],r[1],r[2],r[3],()=>WEATHER(kind,T));else WEATHER(kind,T);}};
+  g.clearRect(0,0,W,H);def.draw(lt,p,T,env);if(!env.done&&!def.indoor)WEATHER(kind,T);
+  grade(segPal(sg));
+  ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#000';ctx.fillRect(0,0,OW,OH);
+  const cam=def.cam?def.cam(p,lt):{fx:200,fy:72,z:1},z=cam.z||1,vw=VW/z,vh=VH/z,vx=clamp(cam.fx-vw/2,0,W-vw),vy=clamp(cam.fy-vh/2,0,H-vh);
+  ctx.imageSmoothingEnabled=false;ctx.drawImage(world,vx,vy,vw,vh,0,BAR,OW,OH-2*BAR);ctx.drawImage(vig,0,BAR);
+  if(opt.bubbles&&def.heads)for(const b of bubbleList(sg,def))if(p>=b.a&&p<b.b){const hb=b.who==='B'&&def.heads[1]&&(def.duo?sg.duo:true)?def.heads[1]:def.heads[0];
+    drawBubble((hb.x-vx)*OW/vw,BAR+(hb.y-vy)*(OH-2*BAR)/vh,b.t,(p-b.a)*ld,(b.b-p)*ld);}
+  if(i===0&&sg.scene==='title'&&opt.titleCard)drawTitle(lt,ld);
+  if(i===SB.segs.length-1&&sg.scene==='end')drawEnd(lt,ld);
+  const fin=i===0?1.8:.6,fout=i===SB.segs.length-1?2.2:.6;let a=0;if(lt<fin)a=1-lt/fin;if(ld-lt<fout)a=Math.max(a,1-(ld-lt)/fout);
+  if(a>0){ctx.fillStyle=`rgba(0,0,0,${a})`;ctx.fillRect(0,BAR,OW,OH-2*BAR);}
+  ctx.fillStyle='#000';ctx.fillRect(0,0,OW,BAR);ctx.fillRect(0,OH-BAR,OW,BAR);
+  drawLyric(T);
+}
+
+// ---------- 分镜表 ----------
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=s=>`${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
+function opts(list,cur){return list.map(([v,n])=>`<option value="${v}"${v===cur?' selected':''}>${esc(n)}</option>`).join('');}
+function renderSB(){
+  const sceneL=SCENE_ORDER.map(id=>[id,S[id].name]),palL=[['','跟随整体'],...Object.entries(PALS).map(([k,v])=>[k,v.name.split(' · ')[0]])],wxL=Object.entries(WEATHERS);
+  $('sbBody').innerHTML=SB.segs.map((sg,i)=>{const d=S[sg.scene],ly=sg.lines.length?sg.lines.join(' / '):({intro:'（前奏 · 片头）',outro:'（尾声 · 片尾）',inst:'（间奏）'}[sg.kind]||'');
+    return `<tr data-i="${i}"><td class="tm" data-k="seek">${fmt(sg.s)}–${fmt(sg.e)}${sg.chorus?' ↺':''}</td><td class="ly" title="${esc(ly)}">${esc(ly)}</td>
+      <td><select data-k="scene" aria-label="场景">${opts(sceneL,sg.scene)}</select></td>
+      <td><select data-k="pal" aria-label="色调">${opts(palL,sg.pal)}</select></td>
+      <td><select data-k="wx" aria-label="天气">${opts(wxL,sg.wx)}</select></td>
+      <td><input type="checkbox" data-k="duo" aria-label="双人"${sg.duo?' checked':''}${d.duo?'':' disabled'}></td>
+      <td><input type="text" class="bub" data-k="bub" aria-label="对白" value="${esc(sg.bub)}" placeholder="不需要就留空"></td>
+      <td><select data-k="who" aria-label="先说的人">${opts([['A','A'],['B','B']],sg.who)}</select></td></tr>`;}).join('');
+  curSeg=-1;
+  const inf=$('sbInfo');
+  if(SB.mode==='classic'||!SB.info)inf.innerHTML=SB.mode==='classic'?'经典模板：为《刻在我心底的名字》手工设计的分镜。':'还没有歌词，先用经典模板预览。载入歌词后会按歌词自动设计。';
+  else{const m=MOODS[SB.info.mood],m2=SB.info.mood2?MOODS[SB.info.mood2]:null;
+    inf.innerHTML=`<span class="mood">${m.name}${m2?' · '+m2.name:''}</span>色调「${esc(PALS[m.pal].name.split(' · ')[0])}」${SB.info.songWx?' · 天气「'+WEATHERS[SB.info.songWx]+'」':''}${SB.info.top.length?' · 关键词：'+SB.info.top.map(([w,n])=>esc(w)+(n>1?'×'+n:'')).join(' '):''}${SB.mode==='custom'?' · <span class="warn">已手动修改</span>':''}`;}
+}
+function $(id){return document.getElementById(id);}
+$('sbBody').addEventListener('click',e=>{const td=e.target.closest('[data-k="seek"]');if(td&&!exporting&&!fast)seek(SB.segs[+td.parentNode.dataset.i].s+.05);});
+$('sbBody').addEventListener('change',e=>{const el=e.target,k=el.dataset.k,tr=el.closest('tr');if(!k||!tr)return;const sg=SB.segs[+tr.dataset.i];
+  if(k==='duo')sg.duo=el.checked;else sg[k]=el.value;
+  if(k==='scene'){sg.duo=!!S[sg.scene].duo&&sg.duo!==false;}
+  SB.mode='custom';renderSB();});
+$('sbBody').addEventListener('input',e=>{if(e.target.dataset.k==='bub'){SB.segs[+e.target.closest('tr').dataset.i].bub=e.target.value;if(SB.mode!=='custom'){SB.mode='custom';$('sbInfo').innerHTML+=' · <span class="warn">已手动修改</span>';}}});
+$('bAuto').onclick=()=>{SB.mode='auto';rebuildSB(true);if(!LYR.some(l=>l.s))$('status').textContent='还没有歌词，先在 ② 里载入或粘贴 LRC。';};
+$('bClassic').onclick=()=>{SB.mode='classic';rebuildSB(true);};
+$('gPal').innerHTML=opts([['auto','自动（按歌词情绪）'],...Object.entries(PALS).map(([k,v])=>[k,v.name])],'auto');
+$('gWx').innerHTML=opts([['auto','自动（按歌词意象）'],...Object.entries(WEATHERS).map(([k,v])=>[k,'全部：'+v])],'auto');
+function syncChars(){PA=makePal($('cAh').value,$('cAs').value);PB=makePal($('cBh').value,$('cBs').value);}
+['cAh','cAs','cBh','cBs'].forEach(id=>$(id).addEventListener('input',syncChars));
+
+// ---------- 歌词 ----------
+function parseLRC(txt){const out=[];let off=0;const lines=txt.split(/\r?\n/);let timed=false;
+  for(const raw of lines){const m=raw.match(/^\[offset:\s*([+-]?\d+)\]/i);if(m){off=+m[1]/1000;continue;}
+    const re=/\[(\d+):(\d+(?:[.:]\d+)?)\]/g;let mm,ts=[],last=0;while((mm=re.exec(raw))){ts.push(+mm[1]*60+parseFloat(mm[2].replace(':','.')));last=re.lastIndex;}
+    if(ts.length){timed=true;const s=raw.slice(last).trim();ts.forEach(t=>out.push({t:t-off,s}));}}
+  if(!timed){const D=dur(),ls=lines.map(s=>s.trim()).filter(s=>s&&!/^\[\w+:/.test(s)),a=D*.08,b=D*.95;return ls.map((s,k)=>({t:a+(b-a)*k/ls.length,s}));}
+  return out.sort((x,y)=>x.t-y.t);}
+
+// ---------- 播放 / 导出 ----------
+const audio=new Audio();audio.preload='auto';
+let playing=false,clockStart=0,clockOff=0,actx=null,dest=null,rec=null,chunks=[],exporting=false;
+function now(){if(audio.src)return audio.currentTime;return playing?clockOff+(performance.now()-clockStart)/1000:clockOff;}
+function ensureGraph(){if(!actx){actx=new AudioContext();const src=actx.createMediaElementSource(audio);dest=actx.createMediaStreamDestination();src.connect(actx.destination);src.connect(dest);}if(actx.state==='suspended')actx.resume();}
+function play(){if(audio.src){ensureGraph();audio.play();}else{clockStart=performance.now();}playing=true;$('bPlay').textContent='❚❚ 暂停';}
+function pause(){if(audio.src)audio.pause();else clockOff=now();playing=false;$('bPlay').textContent='▶ 预览';}
+function seek(t){t=clamp(t,0,dur());if(audio.src)audio.currentTime=t;else{clockOff=t;clockStart=performance.now();}}
+let lastLrc=null;
+function syncOpt(){opt.title=$('tTitle').value;opt.artist=$('tArtist').value;opt.credits=$('tCredits').value;opt.endLine=$('tEnd').value;opt.offset=+$('offset').value||0;
+  opt.bubbles=$('cBubble').checked;opt.titleCard=$('cTitle').checked;opt.pal=$('gPal').value;opt.wx=$('gWx').value;
+  if(tap){LYR=tapLYR();return;}
+  const txt=$('lrc').value;LYR=parseLRC(txt);
+  const D=dur();if(txt!==lastLrc||Math.abs(D-SB.lastD)>.01){if(txt!==lastLrc&&SB.mode==='classic'&&txt.trim())SB.mode='auto';lastLrc=txt;rebuildSB();}}
+['tTitle','tArtist','tCredits','tEnd','offset','cBubble','cTitle','lrc','dur','gPal','gWx'].forEach(id=>$(id).addEventListener('input',syncOpt));
+$('fAudio').onchange=e=>{const f=e.target.files[0];if(!f)return;pause();audio.src=URL.createObjectURL(f);audio.onloadedmetadata=()=>{$('audioInfo').textContent=`${f.name} · ${fmt(audio.duration)}`;syncOpt();};};
+$('fLrc').onchange=async e=>{const f=e.target.files[0];if(!f)return;$('lrc').value=await f.text();syncOpt();};
+$('bPlay').onclick=()=>playing?pause():play();
+audio.onended=()=>{pause();if(exporting)finishExport();if(tap)tapEnd(true);};
+let dragging=false;$('seek').oninput=e=>{dragging=true;seek(e.target.value/1000*dur());};$('seek').onchange=()=>dragging=false;
+
+$('bExport').onclick=()=>exporting?finishExport(true):startExport();
+function startExport(){
+  if(!window.MediaRecorder){$('status').textContent='这个浏览器不支持录制，请用最新版 Chrome 或 Edge 打开。';return;}
+  if(tap){$('status').textContent='先完成或取消打点。';return;}
+  pause();seek(0);
+  const tracks=[...out.captureStream(30).getVideoTracks()];if(audio.src){ensureGraph();tracks.push(...dest.stream.getAudioTracks());}
+  const types=['video/mp4;codecs=avc1.640028,mp4a.40.2','video/mp4;codecs=avc1,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
+  const mime=types.find(t=>MediaRecorder.isTypeSupported(t))||'';
+  rec=new MediaRecorder(new MediaStream(tracks),{mimeType:mime,videoBitsPerSecond:12e6,audioBitsPerSecond:192000});chunks=[];
+  rec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
+  rec.onstop=()=>{const type=rec.mimeType||mime||'video/webm',blob=new Blob(chunks,{type}),a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download=`${opt.title||'pixel'}_像素MV.${type.includes('mp4')?'mp4':'webm'}`;if(!rec._cancel){saveFile(a);$('status').textContent=`导出完成：${a.download}（${(blob.size/1048576).toFixed(1)} MB）`;}else $('status').textContent='已取消导出。';
+    exporting=false;$('bExport').textContent='● 导出视频';$('bExport').className='primary';};
+  exporting=true;rec.start(1000);$('bExport').textContent='■ 停止导出';$('bExport').className='stop';
+  $('status').innerHTML=`正在录制（${mime.includes('mp4')?'MP4':'WebM'}），请保持页面在前台……`;if(!audio.src)$('status').innerHTML+=' <span class="warn">没载入音频，导出的视频会是无声的。</span>';
+  play();}
+// 保存文件：在 claude.ai 里通过 downloads 能力，本地打开时走普通下载
+const dlCap=window.claude?.use?window.claude.use("downloads"):Promise.resolve(null);
+async function saveFile(a){const dl=await dlCap;if(!dl){a.click();return;}
+  let name=a.download;if(name.endsWith(".lrc"))name+=".txt";
+  try{await dl.save({filename:name,data:await (await fetch(a.href)).blob()});}catch(e){if(e.code!=="declined")$("status").textContent="保存失败："+(e.message||e.code);}}
+
+// ---------- 打点对时间轴 ----------
+const REACT=.15; // 按键反应延迟补偿（秒）
+let tap=null;
+const lrcTime=t=>{t=Math.max(0,t);return `[${String(Math.floor(t/60)).padStart(2,'0')}:${(t%60).toFixed(2).padStart(5,'0')}]`;};
+const tapLYR=()=>tap.marks.map(m=>({t:m.t,s:m.s}));
+function tapUpdate(){const last=[...tap.marks].reverse().find(m=>m.s);
+  $('tapPrev').textContent=last?last.s:'—';
+  $('tapNext').textContent=tap.i<tap.lines.length?tap.lines[tap.i]:'（歌词打完了，点「完成」或等歌曲结束）';
+  $('tapCount').textContent=`${tap.i} / ${tap.lines.length}`;LYR=tapLYR();}
+function tapStart(){
+  if(exporting||tap)return;
+  const lines=$('lrc').value.split(/\r?\n/).map(s=>s.replace(/\[[^\]]*\]/g,'').trim()).filter(Boolean);
+  if(!lines.length){$('status').innerHTML='<span class="warn">先在 ② 的框里粘贴歌词文字。</span>';return;}
+  if(!audio.src){$('status').innerHTML='<span class="warn">先在 ① 载入歌曲音频，再开始打点。</span>';return;}
+  tap={lines,i:0,marks:[],backup:$('lrc').value,offset:$('offset').value};
+  $('offset').value=0;opt.offset=0;$('tapBox').hidden=false;document.activeElement&&document.activeElement.blur();
+  $('status').textContent='打点中：每句开唱时按空格，间奏没有歌词时按回车。';
+  pause();seek(0);tapUpdate();play();}
+function tapMark(blank){if(!tap)return;const t=+(now()-REACT).toFixed(2);
+  if(blank){if(tap.marks.length&&!tap.marks[tap.marks.length-1].s)return;tap.marks.push({t,s:''});}
+  else{if(tap.i>=tap.lines.length)return;tap.marks.push({t,s:tap.lines[tap.i]});tap.i++;}
+  tapUpdate();}
+function tapUndo(){if(!tap||!tap.marks.length)return;const m=tap.marks.pop();if(m.s)tap.i--;seek(Math.max(0,m.t-3));tapUpdate();}
+function tapEnd(save){if(!tap)return;pause();
+  if(save&&tap.marks.length){$('lrc').value=tap.marks.map(m=>lrcTime(m.t)+m.s).join('\n');
+    $('status').textContent=`已生成 ${tap.i} 句歌词的时间轴${tap.i<tap.lines.length?`（还有 ${tap.lines.length-tap.i} 句没打）`:''}。可以点「下载 LRC」存一份。`;}
+  else{$('lrc').value=tap.backup;$('offset').value=tap.offset;$('status').textContent=save?'没有打任何点。':'已取消打点。';}
+  tap=null;$('tapBox').hidden=true;syncOpt();}
+$('bTap').onclick=tapStart;
+$('tapHit').onclick=()=>tapMark(false);$('tapBlank').onclick=()=>tapMark(true);$('tapUndo').onclick=tapUndo;
+$('tapDone').onclick=()=>tapEnd(true);$('tapCancel').onclick=()=>tapEnd(false);
+['tapHit','tapBlank','tapUndo'].forEach(id=>$(id).addEventListener('mouseup',e=>e.currentTarget.blur()));
+document.addEventListener('keydown',e=>{if(!tap)return;
+  const k={' ':()=>tapMark(false),'Enter':()=>tapMark(true),'Backspace':tapUndo,'Escape':()=>tapEnd(false)}[e.key];
+  if(k){e.preventDefault();k();}});
+$('bSaveLrc').onclick=()=>{const txt=$('lrc').value.trim();if(!txt){$('status').textContent='歌词框是空的。';return;}
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+txt],{type:'text/plain;charset=utf-8'}));a.download=`${opt.title||'lyrics'}.lrc`;saveFile(a);};
+
+// ---------- 快速导出无声 MP4（逐帧 WebCodecs 编码） ----------
+let fast=null;
+function loadMuxer(){if(window.Mp4Muxer)return Promise.resolve();return new Promise((ok,no)=>{const s=document.createElement('script');
+  s.src='mp4-muxer.min.js';s.onload=ok;s.onerror=()=>no(new Error('MP4 封装库加载失败，请检查网络'));document.head.appendChild(s);});}
+async function renderMp4(onProgress){
+  if(!window.VideoEncoder)throw new Error('这个浏览器不支持 WebCodecs，请用最新版 Chrome 或 Edge');
+  await loadMuxer();
+  const FPS=30,N=Math.ceil(dur()*FPS),{Muxer,ArrayBufferTarget}=Mp4Muxer;
+  let cfg=null;for(const codec of ['avc1.640028','avc1.4d0028','avc1.42e028']){const c={codec,width:OW,height:OH,bitrate:4e6,bitrateMode:'constant',framerate:FPS,avc:{format:'avc'}};if((await VideoEncoder.isConfigSupported(c)).supported){cfg=c;break;}}
+  if(!cfg)throw new Error('这台电脑的浏览器不能编码 H.264');
+  const muxer=new Muxer({target:new ArrayBufferTarget(),video:{codec:'avc',width:OW,height:OH,frameRate:FPS},fastStart:'in-memory'});
+  let err=null;const enc=new VideoEncoder({output:(c,m)=>muxer.addVideoChunk(c,m),error:e=>err=e});enc.configure(cfg);
+  // 用 MessageChannel 让出主线程：后台/无头页面里 setTimeout 会被限速
+  const mc=new MessageChannel(),waiters=[];mc.port1.onmessage=()=>waiters.shift()?.();
+  const tick=()=>new Promise(r=>{waiters.push(r);mc.port2.postMessage(0);});
+  const drained=()=>new Promise(r=>enc.addEventListener('dequeue',r,{once:true}));
+  for(let i=0;i<N;i++){if(err)throw err;if(fast.cancel)throw new Error('已取消');
+    render(i/FPS);const f=new VideoFrame(out,{timestamp:Math.round(i*1e6/FPS),duration:Math.round(1e6/FPS)});enc.encode(f,{keyFrame:i%(FPS*2)===0});f.close();
+    while(enc.encodeQueueSize>6)await drained();if(i%15===0){onProgress(i/N);await tick();}}
+  await enc.flush();if(err)throw err;enc.close();muxer.finalize();return muxer.target.buffer;}
+async function fastExport(save){
+  if(exporting||tap||fast)return;pause();fast={cancel:false};$('bFast').textContent='■ 停止';
+  try{const buf=await renderMp4(p=>$('status').textContent=`正在逐帧渲染 MP4… ${Math.round(p*100)}%`);
+    await save(new Blob([buf],{type:'video/mp4'}));}
+  catch(e){$('status').innerHTML=`<span class="warn">导出失败：${e.message}</span>`;}
+  finally{fast=null;$('bFast').textContent='⚡ 快速导出无声 MP4';}}
+$('bFast').onclick=()=>{if(fast){fast.cancel=true;return;}fastExport(blob=>{const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`${opt.title||'pixel'}_像素MV_无声.mp4`;saveFile(a);$('status').textContent=`导出完成：${a.download}（${(blob.size/1048576).toFixed(1)} MB）。传到手机，在抖音里配上这首歌。`;});};
+
+function finishExport(cancel){if(rec&&rec.state!=='inactive'){rec._cancel=!!cancel;rec.stop();}pause();}
+document.addEventListener('visibilitychange',()=>{if(exporting&&document.hidden)$('status').innerHTML='<span class="warn">页面切到后台了，录制会卡帧，请切回来。</span>';});
+
+function loop(){if(fast){requestAnimationFrame(loop);return;}const D=dur();let T=now();if(!audio.src&&playing&&T>=D){T=D;pause();if(exporting)finishExport();}
+  try{render(T);}catch(err){ctx.fillStyle='#f55';ctx.font='28px monospace';ctx.fillText(String(err),40,60);}
+  if(!dragging)$('seek').value=Math.round(T/D*1000);$('time').textContent=`${fmt(T)} / ${fmt(D)}`;
+  requestAnimationFrame(loop);}
+
+// 字体（国内打不开 Google Fonts 也没关系，会退回系统字体）
+{const l=document.createElement('link');l.rel='stylesheet';l.href='https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@500;700&family=Noto+Serif+SC:wght@600;900&display=swap';l.media='print';l.onload=()=>l.media='all';document.head.appendChild(l);}
+window.onerror=(m)=>{document.title='ERR '+m;};
+const qs=new URLSearchParams(location.search);
+if(qs.has('dur'))$('dur').value=qs.get('dur');
+if(qs.has('lrctext'))$('lrc').value=qs.get('lrctext');
+if(qs.has('pal'))$('gPal').value=qs.get('pal');
+if(qs.has('wx'))$('gWx').value=qs.get('wx');
+syncOpt();
+// 调试：?scene=场景&pal=色调&wx=天气&duo=0 只看一个场景
+if(qs.has('scene')){SB.mode='custom';SB.segs=[{kind:'test',s:0,e:dur(),lines:[],scene:qs.get('scene'),pal:'',wx:qs.get('wx')||S[qs.get('scene')].defWx.replace('mood','rain'),duo:qs.get('duo')!=='0'&&!!S[qs.get('scene')].duo,bub:qs.get('bub')||'',who:'A'}];renderSB();}
+if(qs.has('still')){document.body.classList.add('still');if(qs.has('lyric'))LYR=[{t:+qs.get('still')-1,s:qs.get('lyric')}];clockOff=+qs.get('still');render(clockOff);}
+else requestAnimationFrame(loop);
+</script>
+</body>
+</html>

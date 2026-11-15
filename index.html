@@ -46,16 +46,36 @@ button.sm{padding:5px 12px;font-size:13px}
 .sbhead b{font-size:15px}
 .sbinfo{flex:1;min-width:200px}
 .mood{display:inline-block;padding:1px 8px;border-radius:99px;background:#2a2436;color:#f0c890;font-size:12px;margin-right:6px}
-.sbwrap{overflow-x:auto}
-.sbt{border-collapse:collapse;width:100%;min-width:900px;font-size:12px}
-.sbt th{text-align:left;color:var(--mute);font-weight:400;padding:4px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
-.sbt td{padding:4px 6px;border-bottom:1px solid #1e2230;vertical-align:middle}
-.sbt tr.on td{background:#221e18}
-.sbt td.tm{font-family:Consolas,monospace;white-space:nowrap;color:var(--acc);cursor:pointer}
-.sbt td.ly{max-width:220px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sbt select,.sbt input[type=text]{padding:3px 4px;font-size:12px}
-.sbt select{min-width:96px}
-.sbt .bub{min-width:180px}
+.cards{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 8px}
+.card{flex:0 0 164px;background:var(--field);border:2px solid #232838;border-radius:7px;overflow:hidden;cursor:pointer;text-align:left;padding:0;color:var(--text);font:inherit}
+.card:hover{border-color:#3a4058}
+.card canvas{width:160px;height:72px;display:block;image-rendering:pixelated}
+.card .ct{padding:4px 7px 6px;font-size:11px;line-height:1.45}
+.card .cn{font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .cl{color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card.on{border-color:#5a6a9a}
+.card.sel{border-color:var(--acc);box-shadow:0 0 0 2px #e8a04a44}
+.ed{margin-top:8px;border-top:1px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:9px}
+.edhead{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.edhead b{font-size:14px}
+.edhead .hint{flex:1;min-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:6px}
+.sgh{grid-column:1/-1;font-size:12px;color:var(--mute);margin-top:4px}
+.sopt{background:var(--field);border:2px solid #232838;border-radius:6px;padding:0;cursor:pointer;color:var(--text);font:inherit;font-size:11px;text-align:left;overflow:hidden}
+.sopt:hover{border-color:#3a4058}
+.sopt canvas{width:100%;height:auto;aspect-ratio:20/9;display:block;image-rendering:pixelated}
+.sopt span{display:block;padding:2px 5px 3px}
+.sopt.cur{border-color:var(--acc)}
+.sopt.rec span::after{content:' ✦';color:var(--acc)}
+.edrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.edlabel{font-size:12px;color:var(--mute);min-width:34px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:inherit;font-size:12px;padding:3px 11px;border-radius:99px;background:#1b1f2d;border:1px solid var(--line);cursor:pointer;color:var(--text)}
+.chip:hover{border-color:#3a4058}
+.chip.on{color:#1a1208;background:var(--acc);border-color:var(--acc)}
+.chip:disabled{opacity:.4;cursor:default}
+#edBub{flex:1;min-width:180px}
+details.more summary{cursor:pointer;color:var(--mute);font-size:12px;margin:6px 0}
 body.still .panel,body.still .controls,body.still .sb,body.still .tip{display:none}
 body.still .app{display:block}body.still main{padding:0}body.still .stage{border-radius:0}
 @media (max-width:900px){.app{grid-template-columns:1fr}.panel{border-right:0;border-bottom:1px solid var(--line)}}
@@ -84,12 +104,16 @@ body.still .app{display:block}body.still main{padding:0}body.still .stage{border
 
   <section>
     <label class="h">③ 画面风格</label>
-    <div class="f"><span>整体色调</span><select id="gPal"></select></div>
-    <div class="f"><span>天气氛围</span><select id="gWx"></select></div>
-    <div class="f"><span>画框</span><select id="gFrame"></select></div>
-    <div class="f"><span>歌词字幕样式</span><select id="gLyric"></select></div>
-    <div class="f"><span>转场</span><select id="gTrans"></select></div>
-    <div class="f"><span>画面质感</span><select id="gFx"></select></div>
+    <div class="chips" id="presets"></div>
+    <details class="more">
+      <summary>细调（色调、天气、画框、字幕、转场、质感）</summary>
+      <div class="f"><span>整体色调</span><select id="gPal"></select></div>
+      <div class="f"><span>天气氛围</span><select id="gWx"></select></div>
+      <div class="f"><span>画框</span><select id="gFrame"></select></div>
+      <div class="f"><span>歌词字幕样式</span><select id="gLyric"></select></div>
+      <div class="f"><span>转场</span><select id="gTrans"></select></div>
+      <div class="f"><span>画面质感</span><select id="gFx"></select></div>
+    </details>
     <div class="f"><span>角色（发色 / 衣服 / 发型）</span>
       <div class="row">
         <span class="hint">A</span><input type="color" id="cAh" value="#14141c" title="角色 A 发色"><input type="color" id="cAs" value="#c4a86e" title="角色 A 衣服"><select id="hA" aria-label="角色 A 发型" style="width:auto"></select>
@@ -98,7 +122,7 @@ body.still .app{display:block}body.still main{padding:0}body.still .stage{border
         <span class="hint">B</span><input type="color" id="cBh" value="#2c1d16" title="角色 B 发色"><input type="color" id="cBs" value="#e4e2d8" title="角色 B 衣服"><select id="hB" aria-label="角色 B 发型" style="width:auto"></select>
       </div>
     </div>
-    <div class="hint">「自动」会按歌词的情绪和意象来选。每一段还能在右边的分镜表里单独改。</div>
+    <div class="hint">点一个风格就会一次换好整体的色调、天气、画框和字幕。每一段的场景在右边的分镜卡片里改。</div>
   </section>
 
   <section>
@@ -147,18 +171,22 @@ body.still .app{display:block}body.still main{padding:0}body.still .stage{border
   </div>
   <div class="sb">
     <div class="sbhead">
-      <b>分镜表</b>
+      <b>分镜</b>
       <span class="sbinfo hint" id="sbInfo"></span>
+      <button class="sm" id="bShuffle">🎲 全部换一换</button>
       <button class="sm" id="bAuto">✦ 按歌词重新生成</button>
       <button class="sm" id="bClassic">经典模板</button>
     </div>
-    <div class="sbwrap">
-      <table class="sbt">
-        <thead><tr><th>时间</th><th>歌词</th><th>场景</th><th>色调</th><th>天气</th><th>双人</th><th>对白气泡（两句用 / 隔开）</th><th>先说</th></tr></thead>
-        <tbody id="sbBody"></tbody>
-      </table>
+    <div class="cards" id="cards"></div>
+    <div class="ed" id="ed" hidden>
+      <div class="edhead"><b id="edTitle"></b><span class="hint" id="edLyric"></span><button class="sm" id="edNext">↻ 换一个场景</button><button class="sm" id="edClose">收起</button></div>
+      <div class="sgrid" id="edScenes"></div>
+      <div class="edrow"><span class="edlabel">色调</span><div class="chips" id="edPal"></div></div>
+      <div class="edrow"><span class="edlabel">天气</span><div class="chips" id="edWx"></div></div>
+      <div class="edrow"><span class="edlabel">人物</span><div class="chips" id="edDuo"></div></div>
+      <div class="edrow"><span class="edlabel">对白</span><input type="text" id="edBub" placeholder="不需要就留空；两句话用 / 隔开"><div class="chips" id="edWho"></div></div>
     </div>
-    <div class="hint tip">点时间可以跳到那一段。改了任何一格，分镜就固定下来，不会再被自动生成覆盖；想重来就点「按歌词重新生成」。</div>
+    <div class="hint tip">点卡片打开这一段的场景选择，看着缩略图点一下就换好；「↻ 换一个场景」会按歌词推荐下一个合适的，带 ✦ 的是推荐场景。</div>
   </div>
 </main>
 </div>
@@ -767,7 +795,7 @@ const TAGS={
   street2:{m:['sad','city'],w:['擦肩','路过','人海','遇见','重逢','人群','走过','背影','陌生','伞','雨','街']},
   park:{m:['nostalgic','happy','dream'],w:['公园','秋千','滑梯','长椅','晚风','小时候','童年','约定','陪','等你']},
   office:{m:['city','sad'],w:['加班','工作','生活','忙','疲惫','累','压力','努力','屏幕','日复一日','孤独','城市']},
-  game:{m:['happy','hope'],w:['游戏','冒险','闯关','勇敢','出发','奔跑','世界','英雄','超级','level','game']},
+  game:{m:['happy','hope'],w:['游戏','冒险','闯关','勇敢','出发','奔跑','英雄','超级','level','game']},
   snow:{m:['winter','sad'],w:['雪','冬','重逢','好久不见','白头','多年','以后','老了','终于','snow','winter']},
 };
 const AMBIENT=['rooftop','train','sea','hill','neon','forest','flowers','roomN','street2','park'];
@@ -799,7 +827,19 @@ function segment(lyr,D){
   for(let i=0;i<segs.length;i++){const sg=segs[i];if(sg.kind==='inst'&&sg.e-sg.s>24){const m=(sg.s+sg.e)/2;segs.splice(i+1,0,{kind:'inst',s:m,e:sg.e,lines:[]});sg.e=m;}}
   return segs.filter(sg=>sg.e-sg.s>.5);
 }
-function autoBoard(L,D){
+// 给一段歌词的每个场景打分（关键词、整首歌的情绪、避免重复），分高的更合适
+function scoreScenes(txt,all,mood,mood2,kind,used,avoid,salt,noise){
+  return Object.entries(TAGS).map(([id,tg])=>{
+    let sc=tg.w.reduce((a,w)=>a+count(txt,w)*3+count(all,w)*.25,0);
+    if(tg.m.includes(mood))sc+=2;if(mood2&&tg.m.includes(mood2))sc+=1;
+    if(kind==='inst')sc+=AMBIENT.includes(id)?1.5:-3;
+    if(id==='cry'&&!/泪|哭|tears|cry/.test(txt))sc-=2;
+    if((id==='game'||id==='flowers'||id==='hill')&&!['happy','summer','hope','spring'].includes(mood))sc-=4;
+    sc-=(used[id]||0)*2.6;if(avoid.includes(id))sc-=100;sc+=hash(salt*131+id.length*17+id.charCodeAt(0)+id.charCodeAt(1)*7)*noise;
+    return [id,sc];}).sort((a,b)=>b[1]-a[1]).map(x=>x[0]);}
+function autoWx(id,txt,songWx,mood){const def=S[id],[w]=topWx(txt),bright=['happy','summer','hope','spring'].includes(mood);
+  let wx=w||songWx||(def.defWx==='mood'?MOODS[mood].wx:(bright&&def.defWx==='rain'?'none':def.defWx));if(def.indoor&&wx==='meteor')wx='none';return wx;}
+function autoBoard(L,D,seed=0){
   const lyr=L.filter(l=>l.s&&l.t>=0&&l.t<D-2);
   const all=lyr.map(l=>l.s).join('\n').toLowerCase();
   const ms=Object.entries(MOODS).map(([k,m])=>[k,m.w.reduce((a,w)=>a+count(all,w),0)]).sort((a,b)=>b[1]-a[1]);
@@ -812,30 +852,19 @@ function autoBoard(L,D){
     else if(sg.kind==='outro')sg.scene='end';
     else{
       const rep=sg.lines.length?segs.slice(0,i).find(o=>o.lines.length&&sg.lines.filter(x=>o.lines.some(y=>norm(y)===norm(x))).length>=sg.lines.length*.6):null;
-      if(rep&&rep.scene!==prev){sg.scene=rep.scene;sg.chorus=true;}
-      else{let best=null,bs=-1e9;
-        for(const [id,tg] of Object.entries(TAGS)){
-          let sc=tg.w.reduce((a,w)=>a+count(txt,w)*3+count(all,w)*.25,0);
-          if(tg.m.includes(mood))sc+=2;if(mood2&&tg.m.includes(mood2))sc+=1;
-          if(sg.kind==='inst')sc+=AMBIENT.includes(id)?1.5:-3;
-          if(id==='cry'&&!/泪|哭|tears|cry/.test(txt))sc-=2;
-          sc-=(used[id]||0)*2.6;if(id===prev)sc-=100;sc+=hash(i*131+id.length*17+id.charCodeAt(0))*.6;
-          if(sc>bs){bs=sc;best=id;}}
-        sg.scene=best;}
+      if(rep&&rep.scene!==prev&&!seed){sg.scene=rep.scene;sg.chorus=true;}
+      else sg.scene=scoreScenes(txt,all,mood,mood2,sg.kind,used,prev?[prev]:[],i+seed*977,seed?3.5:.6)[0];
     }
     used[sg.scene]=(used[sg.scene]||0)+1;prev=sg.scene;
-    const def=S[sg.scene],[w]=topWx(txt);
-    const bright=['happy','summer','hope','spring'].includes(mood);
-    sg.wx=w||songWx||(def.defWx==='mood'?MOODS[mood].wx:(bright&&def.defWx==='rain'?'none':def.defWx));
-    if(def.indoor&&sg.wx==='meteor')sg.wx='none';
-    sg.duo=!!def.duo&&!/一个人|孤单|独自|寂寞|alone/.test(txt);
+    sg.wx=autoWx(sg.scene,txt,songWx,mood);
+    sg.duo=!!S[sg.scene].duo&&!/一个人|孤单|独自|寂寞|alone/.test(txt);
     sg.pal='';sg.bub='';sg.who='A';
   });
   const kw={};for(const tg of Object.values(TAGS))for(const w of tg.w){const n=count(all,w);if(n)kw[w]=Math.max(kw[w]||0,n);}
   const top=Object.entries(kw).filter(([w])=>!Object.keys(kw).some(o=>o!==w&&o.length>w.length&&o.includes(w))).sort((a,b)=>b[1]-a[1]).slice(0,6);
   const seen={};lyr.forEach(l=>{const k=norm(l.s);seen[k]=(seen[k]||0)+1;});
   const rep=new Set(Object.keys(seen).filter(k=>seen[k]>1&&k.length>1));
-  return {segs,mood,mood2,songWx,top,rep};
+  return {segs,mood,mood2,songWx,top,rep,all};
 }
 // 为《刻在我心底的名字》手工设计的经典分镜
 const CLASSIC=[['title',7,'rain'],['roomN',11,'rain'],['corridor',11,'none','放学后……要不要去海边？ / ……好啊。','A'],['bike',11,'rain','抓紧了，要下坡了！ / 你骑慢一点啦——！','A'],
@@ -844,13 +873,13 @@ function classicBoard(D){const tot=CLASSIC.reduce((a,c)=>a+c[1],0);let acc=0;
   return {segs:CLASSIC.map(([scene,w,wx,bub='',who='A'])=>{const s=acc;acc+=w/tot*D;return {kind:'classic',s,e:acc,lines:[],scene,wx,duo:!!S[scene].duo,pal:'',bub,who};}),mood:null};}
 
 // ---------- 分镜状态 ----------
-const SB={mode:'auto',segs:[],mood:null,info:null,lastD:0};
+const SB={mode:'auto',segs:[],mood:null,info:null,lastD:0,seed:0};
 const opt={title:'',artist:'',credits:'',endLine:'',offset:0,bubbles:true,titleCard:true,pal:'auto',wx:'auto',frame:'auto',lyric:'auto',trans:'auto',fx:'none',hairA:'short',hairB:'long'};
 let LYR=[];
 function rebuildSB(force){const D=dur();
   if(SB.mode==='custom'&&!force){if(SB.lastD&&Math.abs(SB.lastD-D)>.01){const k=D/SB.lastD;SB.segs.forEach(s=>{s.s*=k;s.e*=k;});SB.lastD=D;renderSB();}return;}
   const hasLyr=LYR.some(l=>l.s);
-  const b=(SB.mode==='classic'||!hasLyr)?classicBoard(D):autoBoard(LYR,D);
+  const b=(SB.mode==='classic'||!hasLyr)?classicBoard(D):autoBoard(LYR,D,SB.seed);
   SB.segs=b.segs;SB.info=b.mood?b:null;SB.lastD=D;renderSB();}
 function moodPal(){return SB.info?MOODS[SB.info.mood].pal:'orig';}
 function segPal(sg){return sg.pal||(opt.pal==='auto'?(SB.mode==='classic'||!SB.info?'orig':moodPal()):opt.pal);}
@@ -950,14 +979,16 @@ function bubbleList(sg,def){const parts=(sg.bub||'').split('/').map(s=>s.trim())
   const [a0,b0]=def.bubWin||[.18,.86],n=parts.length,span=(b0-a0)/n;
   return parts.map((t,k)=>({a:a0+k*span+(n>1&&k?.04:0),b:a0+(k+1)*span-(n>1?.04:0),t,who:(sg.who==='B')!==(k%2===1)?'B':'A'}));}
 
+// 把一个场景画进像素世界画布（正片和缩略图共用）
+function drawWorld(def,lt,p,T,kind,duo,pal){
+  const env={duo,done:false,wx(r){this.done=true;if(r===null||kind==='none')return;if(r)clip(r[0],r[1],r[2],r[3],()=>WEATHER(kind,T));else WEATHER(kind,T);}};
+  g.clearRect(0,0,W,H);def.draw(lt,p,T,env);if(!env.done&&!def.indoor)WEATHER(kind,T);grade(pal);}
 let curSeg=-1;
 function render(T){
   const D=dur();T=clamp(T,0,D-.001);if(!SB.segs.length)rebuildSB();
   const i=segAt(T),sg=SB.segs[i],def=S[sg.scene]||S.title,lt=T-sg.s,ld=Math.max(.01,sg.e-sg.s),p=clamp(lt/ld,0,1);
-  if(i!==curSeg){curSeg=i;document.querySelectorAll('#sbBody tr').forEach((r,k)=>r.classList.toggle('on',k===i));}
-  const kind=segWx(sg),env={duo:sg.duo,done:false,wx(r){this.done=true;if(r===null||kind==='none')return;if(r)clip(r[0],r[1],r[2],r[3],()=>WEATHER(kind,T));else WEATHER(kind,T);}};
-  g.clearRect(0,0,W,H);def.draw(lt,p,T,env);if(!env.done&&!def.indoor)WEATHER(kind,T);
-  grade(segPal(sg));
+  if(i!==curSeg){curSeg=i;document.querySelectorAll('#cards .card').forEach((c,k)=>c.classList.toggle('on',k===i));}
+  drawWorld(def,lt,p,T,segWx(sg),sg.duo,segPal(sg));
   const lk=look(),fr=frameRect(lk.frame);
   ctx.setTransform(1,0,0,1,0,0);
   if(lk.frame==='window')drawDesktop(fr);else{ctx.fillStyle='#000';ctx.fillRect(0,0,OW,OH);}
@@ -981,38 +1012,89 @@ function render(T){
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt=s=>`${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
 function opts(list,cur){return list.map(([v,n])=>`<option value="${v}"${v===cur?' selected':''}>${esc(n)}</option>`).join('');}
-function renderSB(){
-  const sceneL=SCENE_ORDER.map(id=>[id,S[id].name]),palL=[['','跟随整体'],...Object.entries(PALS).map(([k,v])=>[k,v.name.split(' · ')[0]])],wxL=Object.entries(WEATHERS);
-  $('sbBody').innerHTML=SB.segs.map((sg,i)=>{const d=S[sg.scene],ly=sg.lines.length?sg.lines.join(' / '):({intro:'（前奏 · 片头）',outro:'（尾声 · 片尾）',inst:'（间奏）'}[sg.kind]||'');
-    return `<tr data-i="${i}"><td class="tm" data-k="seek">${fmt(sg.s)}–${fmt(sg.e)}${sg.chorus?' ↺':''}</td><td class="ly" title="${esc(ly)}">${esc(ly)}</td>
-      <td><select data-k="scene" aria-label="场景">${opts(sceneL,sg.scene)}</select></td>
-      <td><select data-k="pal" aria-label="色调">${opts(palL,sg.pal)}</select></td>
-      <td><select data-k="wx" aria-label="天气">${opts(wxL,sg.wx)}</select></td>
-      <td><input type="checkbox" data-k="duo" aria-label="双人"${sg.duo?' checked':''}${d.duo?'':' disabled'}></td>
-      <td><input type="text" class="bub" data-k="bub" aria-label="对白" value="${esc(sg.bub)}" placeholder="不需要就留空"></td>
-      <td><select data-k="who" aria-label="先说的人">${opts([['A','A'],['B','B']],sg.who)}</select></td></tr>`;}).join('');
-  curSeg=-1;
+// ---------- 分镜卡片 + 可视化场景选择 ----------
+const GROUPS=[['室内',['roomN','roomD','classroom','desk','office','cafe','train']],['城市',['street2','neon','bike','station','rooftop','corridor']],['自然',['sea','flowers','hill','forest','park','snow']],['特别',['game','cry','title','end']]];
+const KIND_LABEL={intro:'（前奏 · 片头）',outro:'（尾声 · 片尾）',inst:'（间奏）'};
+const segLyric=sg=>sg.lines.length?sg.lines.join(' / '):(KIND_LABEL[sg.kind]||'');
+let SEL=-1,thumbBusy=false;
+function thumbTo(cv,id,pal,wx,duo){const def=S[id];if(!def)return;const cam=def.cam?def.cam(.5,5):{fx:200,fy:72};
+  drawWorld(def,5,.5,5,wx,duo,pal);const c=cv.getContext('2d');c.imageSmoothingEnabled=false;c.drawImage(world,clamp(cam.fx-160,0,W-320),0,320,144,0,0,cv.width,cv.height);}
+function mkCanvas(){const cv=document.createElement('canvas');cv.width=320;cv.height=144;return cv;}
+function renderCards(){const box=$('cards');box.innerHTML='';
+  SB.segs.forEach((sg,i)=>{const b=document.createElement('button');b.className='card'+(i===SEL?' sel':'');b.dataset.i=i;b.title=segLyric(sg);
+    const cv=mkCanvas();thumbTo(cv,sg.scene,segPal(sg),segWx(sg),sg.duo);b.appendChild(cv);
+    const ct=document.createElement('div');ct.className='ct';ct.innerHTML=`<div class="cn">${i+1}. ${esc(S[sg.scene].name)}</div><div class="hint">${fmt(sg.s)}–${fmt(sg.e)}${sg.chorus?' · 副歌':''}</div><div class="cl">${esc(segLyric(sg))}</div>`;
+    b.appendChild(ct);box.appendChild(b);});
+  curSeg=-1;}
+function refreshCard(i){const b=$('cards').children[i],sg=SB.segs[i];if(!b||!sg)return;thumbTo(b.querySelector('canvas'),sg.scene,segPal(sg),segWx(sg),sg.duo);b.querySelector('.cn').textContent=`${i+1}. ${S[sg.scene].name}`;}
+function chipRow(el,list,cur,dis){el.innerHTML=list.map(([v,n])=>`<button class="chip${v===cur?' on':''}" data-v="${v}"${dis&&dis(v)?' disabled':''}>${esc(n)}</button>`).join('');}
+function recFor(i){const sg=SB.segs[i],info=SB.info;if(!info)return [];const used={};SB.segs.forEach((o,k)=>{if(k!==i)used[o.scene]=(used[o.scene]||0)+1;});
+  return scoreScenes(sg.lines.join('\n').toLowerCase(),info.all,info.mood,info.mood2,sg.kind,used,[SB.segs[i-1]?.scene,SB.segs[i+1]?.scene].filter(Boolean),i,.3);}
+function openEditor(i,rebuildGrid=true){SEL=i;const sg=SB.segs[i];if(!sg){$('ed').hidden=true;return;}$('ed').hidden=false;
+  document.querySelectorAll('#cards .card').forEach((c,k)=>c.classList.toggle('sel',k===i));
+  $('edTitle').textContent=`第 ${i+1} 段 · ${fmt(sg.s)}–${fmt(sg.e)}`;$('edLyric').textContent=segLyric(sg);$('edLyric').title=segLyric(sg);
+  if(rebuildGrid){const grid=$('edScenes'),rec=recFor(i).slice(0,4),pal=segPal(sg),wx=segWx(sg);grid.innerHTML='';
+    for(const [gn,ids] of GROUPS){const h=document.createElement('div');h.className='sgh';h.textContent=gn;grid.appendChild(h);
+      for(const id of ids){const b=document.createElement('button');b.className='sopt'+(id===sg.scene?' cur':'')+(rec.includes(id)?' rec':'');b.dataset.scene=id;b.title=S[id].name;
+        const cv=mkCanvas();thumbTo(cv,id,pal,S[id].indoor&&wx==='meteor'?'none':wx,!!S[id].duo);b.appendChild(cv);const s=document.createElement('span');s.textContent=S[id].name;b.appendChild(s);grid.appendChild(b);}}}
+  else document.querySelectorAll('#edScenes .sopt').forEach(b=>b.classList.toggle('cur',b.dataset.scene===sg.scene));
+  chipRow($('edPal'),[['','跟随整体'],...Object.entries(PALS).map(([k,v])=>[k,v.name.split(' · ')[0]])],sg.pal);
+  chipRow($('edWx'),Object.entries(WEATHERS),sg.wx);
+  chipRow($('edDuo'),[['solo','单人'],['duo','双人']],sg.duo?'duo':'solo',v=>v==='duo'&&!S[sg.scene].duo);
+  $('edBub').value=sg.bub||'';chipRow($('edWho'),[['A','A 先说'],['B','B 先说']],sg.who);}
+function markCustom(){if(SB.mode!=='custom'){SB.mode='custom';renderInfo();}}
+function setScene(i,id){const sg=SB.segs[i];sg.scene=id;sg.duo=!!S[id].duo&&!/一个人|孤单|独自|寂寞|alone/.test(segLyric(sg));
+  if(SB.info)sg.wx=autoWx(id,sg.lines.join('\n').toLowerCase(),SB.info.songWx,SB.info.mood);else if(S[id].indoor&&sg.wx==='meteor')sg.wx='none';
+  markCustom();refreshCard(i);openEditor(i,false);}
+function renderSB(){renderCards();renderInfo();if(SEL>=0&&SEL<SB.segs.length)openEditor(SEL);else{SEL=-1;$('ed').hidden=true;}}
+function renderInfo(){
   const inf=$('sbInfo');
   if(SB.mode==='classic'||!SB.info)inf.innerHTML=SB.mode==='classic'?'经典模板：为《刻在我心底的名字》手工设计的分镜。':'还没有歌词，先用经典模板预览。载入歌词后会按歌词自动设计。';
   else{const m=MOODS[SB.info.mood],m2=SB.info.mood2?MOODS[SB.info.mood2]:null;
     inf.innerHTML=`<span class="mood">${m.name}${m2?' · '+m2.name:''}</span>色调「${esc(PALS[m.pal].name.split(' · ')[0])}」${SB.info.songWx?' · 天气「'+WEATHERS[SB.info.songWx]+'」':''}${SB.info.top.length?' · 关键词：'+SB.info.top.map(([w,n])=>esc(w)+(n>1?'×'+n:'')).join(' '):''}${SB.mode==='custom'?' · <span class="warn">已手动修改</span>':''}`;}
 }
 function $(id){return document.getElementById(id);}
-$('sbBody').addEventListener('click',e=>{const td=e.target.closest('[data-k="seek"]');if(td&&!exporting&&!fast)seek(SB.segs[+td.parentNode.dataset.i].s+.05);});
-$('sbBody').addEventListener('change',e=>{const el=e.target,k=el.dataset.k,tr=el.closest('tr');if(!k||!tr)return;const sg=SB.segs[+tr.dataset.i];
-  if(k==='duo')sg.duo=el.checked;else sg[k]=el.value;
-  if(k==='scene'){sg.duo=!!S[sg.scene].duo&&sg.duo!==false;}
-  SB.mode='custom';renderSB();});
-$('sbBody').addEventListener('input',e=>{if(e.target.dataset.k==='bub'){SB.segs[+e.target.closest('tr').dataset.i].bub=e.target.value;if(SB.mode!=='custom'){SB.mode='custom';$('sbInfo').innerHTML+=' · <span class="warn">已手动修改</span>';}}});
-$('bAuto').onclick=()=>{SB.mode='auto';rebuildSB(true);if(!LYR.some(l=>l.s))$('status').textContent='还没有歌词，先在 ② 里载入或粘贴 LRC。';};
+$('cards').addEventListener('click',e=>{const c=e.target.closest('.card');if(!c)return;const i=+c.dataset.i;
+  if(i===SEL&&!$('ed').hidden){$('ed').hidden=true;SEL=-1;c.classList.remove('sel');return;}
+  openEditor(i);if(!exporting&&!fast)seek(SB.segs[i].s+.05);});
+$('edScenes').addEventListener('click',e=>{const b=e.target.closest('.sopt');if(b&&SEL>=0)setScene(SEL,b.dataset.scene);});
+$('edNext').onclick=()=>{if(SEL<0)return;const sg=SB.segs[SEL];sg.tried=sg.tried||[];if(!sg.tried.includes(sg.scene))sg.tried.push(sg.scene);
+  let pool=(SB.info?recFor(SEL):SCENE_ORDER.filter(id=>!['title','end'].includes(id))).filter(id=>!sg.tried.includes(id));
+  if(!pool.length){sg.tried=[sg.scene];pool=(SB.info?recFor(SEL):SCENE_ORDER).filter(id=>id!==sg.scene);}
+  setScene(SEL,pool[0]);};
+$('edClose').onclick=()=>{$('ed').hidden=true;SEL=-1;document.querySelectorAll('#cards .card.sel').forEach(c=>c.classList.remove('sel'));};
+$('edPal').addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b||SEL<0)return;SB.segs[SEL].pal=b.dataset.v;markCustom();refreshCard(SEL);openEditor(SEL);});
+$('edWx').addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b||SEL<0)return;SB.segs[SEL].wx=b.dataset.v;markCustom();refreshCard(SEL);openEditor(SEL,false);});
+$('edDuo').addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b||b.disabled||SEL<0)return;SB.segs[SEL].duo=b.dataset.v==='duo';markCustom();refreshCard(SEL);openEditor(SEL,false);});
+$('edWho').addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b||SEL<0)return;SB.segs[SEL].who=b.dataset.v;markCustom();openEditor(SEL,false);});
+$('edBub').addEventListener('input',e=>{if(SEL<0)return;SB.segs[SEL].bub=e.target.value;markCustom();});
+$('bAuto').onclick=()=>{SB.mode='auto';SB.seed=0;rebuildSB(true);if(!LYR.some(l=>l.s))$('status').textContent='还没有歌词，先在 ② 里载入或粘贴 LRC。';};
+$('bShuffle').onclick=()=>{if(!LYR.some(l=>l.s)){$('status').textContent='「全部换一换」需要歌词，先在 ② 里载入或粘贴 LRC。';return;}SB.mode='auto';SB.seed++;rebuildSB(true);};
 $('bClassic').onclick=()=>{SB.mode='classic';rebuildSB(true);};
+// 一键风格：同时设置色调、天气、画框、字幕、转场、质感
+const PRESETS=[['auto','自动',{gPal:'auto',gWx:'auto',gFrame:'auto',gLyric:'auto',gTrans:'auto',gFx:'none'}],
+  ['rain','伤感雨夜',{gPal:'night',gWx:'rain',gFrame:'film',gLyric:'film',gTrans:'fade',gFx:'none'}],
+  ['youth','青春怀旧',{gPal:'dusk',gWx:'auto',gFrame:'film',gLyric:'float',gTrans:'dissolve',gFx:'grain'}],
+  ['sweet','甜蜜夏日',{gPal:'summer',gWx:'none',gFrame:'full',gLyric:'karaoke',gTrans:'iris',gFx:'none'}],
+  ['city','都市霓虹',{gPal:'neon',gWx:'rain',gFrame:'full',gLyric:'karaoke',gTrans:'wipe',gFx:'crt'}],
+  ['dream','梦幻星空',{gPal:'night',gWx:'meteor',gFrame:'full',gLyric:'big',gTrans:'dissolve',gFx:'none'}],
+  ['retro','复古游戏',{gPal:'orig',gWx:'none',gFrame:'game',gLyric:'rpg',gTrans:'wipe',gFx:'crt'}],
+  ['winter','冬日暖心',{gPal:'snow',gWx:'snow',gFrame:'film',gLyric:'float',gTrans:'fade',gFx:'grain'}],
+  ['photo','旧照片',{gPal:'sepia',gWx:'auto',gFrame:'window',gLyric:'film',gTrans:'dissolve',gFx:'grain'}]];
+$('presets').innerHTML=PRESETS.map(([k,n])=>`<button class="chip${k==='auto'?' on':''}" data-p="${k}">${n}</button>`).join('');
+$('presets').addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;const pr=PRESETS.find(p=>p[0]===b.dataset.p);
+  for(const [id,v] of Object.entries(pr[2]))$(id).value=v;
+  document.querySelectorAll('#presets .chip').forEach(c=>c.classList.toggle('on',c===b));syncOpt();renderCards();if(SEL>=0)openEditor(SEL);});
 $('gPal').innerHTML=opts([['auto','自动（按歌词情绪）'],...Object.entries(PALS).map(([k,v])=>[k,v.name])],'auto');
 $('gWx').innerHTML=opts([['auto','自动（按歌词意象）'],...Object.entries(WEATHERS).map(([k,v])=>[k,'全部：'+v])],'auto');
 $('gFrame').innerHTML=opts(Object.entries(FRAMES),'auto');$('gLyric').innerHTML=opts(Object.entries(LSTYLES),'auto');
 $('gTrans').innerHTML=opts(Object.entries(TRANS),'auto');$('gFx').innerHTML=opts(Object.entries(FXS),'none');
 $('hA').innerHTML=opts(Object.entries(HAIRS),'short');$('hB').innerHTML=opts(Object.entries(HAIRS),'long');
 function syncChars(){PA=makePal($('cAh').value,$('cAs').value);PB=makePal($('cBh').value,$('cBs').value);}
-['cAh','cAs','cBh','cBs'].forEach(id=>$(id).addEventListener('input',syncChars));
+// 缩略图重画放到下一帧、合并多次改动，拖颜色选择器时不卡
+let thumbsQueued=false;
+function queueThumbs(){if(thumbsQueued)return;thumbsQueued=true;requestAnimationFrame(()=>{thumbsQueued=false;if(fast)return;renderCards();if(SEL>=0)openEditor(SEL);});}
+['cAh','cAs','cBh','cBs'].forEach(id=>$(id).addEventListener('input',()=>{syncChars();queueThumbs();}));
 
 // ---------- 歌词 ----------
 function parseLRC(txt){const out=[];let off=0;const lines=txt.split(/\r?\n/);let timed=false;
@@ -1037,7 +1119,11 @@ function syncOpt(){opt.title=$('tTitle').value;opt.artist=$('tArtist').value;opt
   if(tap){LYR=tapLYR();return;}
   const txt=$('lrc').value;LYR=parseLRC(txt);
   const D=dur();if(txt!==lastLrc||Math.abs(D-SB.lastD)>.01){if(txt!==lastLrc&&SB.mode==='classic'&&txt.trim())SB.mode='auto';lastLrc=txt;rebuildSB();}}
-['tTitle','tArtist','tCredits','tEnd','offset','cBubble','cTitle','lrc','dur','gPal','gWx','gFrame','gLyric','gTrans','gFx','hA','hB'].forEach(id=>$(id).addEventListener('input',syncOpt));
+['tTitle','tArtist','tCredits','tEnd','offset','cBubble','cTitle','gFrame','gLyric','gTrans','gFx'].forEach(id=>$(id).addEventListener('input',syncOpt));
+['gPal','gWx','hA','hB'].forEach(id=>$(id).addEventListener('input',()=>{syncOpt();queueThumbs();}));
+// 歌词和时长边打字边生效，停顿 0.4 秒后再重新分镜
+let lrcTimer=0;['lrc','dur'].forEach(id=>$(id).addEventListener('input',()=>{clearTimeout(lrcTimer);lrcTimer=setTimeout(syncOpt,400);}));
+['gFrame','gLyric','gTrans','gFx','gPal','gWx'].forEach(id=>$(id).addEventListener('input',()=>document.querySelectorAll('#presets .chip').forEach(c=>c.classList.remove('on'))));
 $('fAudio').onchange=e=>{const f=e.target.files[0];if(!f)return;pause();audio.src=URL.createObjectURL(f);audio.onloadedmetadata=()=>{$('audioInfo').textContent=`${f.name} · ${fmt(audio.duration)}`;syncOpt();};};
 $('fLrc').onchange=async e=>{const f=e.target.files[0];if(!f)return;$('lrc').value=await f.text();syncOpt();};
 $('bPlay').onclick=()=>playing?pause():play();
@@ -1153,6 +1239,7 @@ for(const [q,id] of [['frame','gFrame'],['lstyle','gLyric'],['trans','gTrans'],[
 syncOpt();
 // 调试：?scene=场景&pal=色调&wx=天气&duo=0 只看一个场景
 if(qs.has('scene')){SB.mode='custom';SB.segs=[{kind:'test',s:0,e:dur(),lines:[],scene:qs.get('scene'),pal:'',wx:qs.get('wx')||S[qs.get('scene')].defWx.replace('mood','rain'),duo:qs.get('duo')!=='0'&&!!S[qs.get('scene')].duo,bub:qs.get('bub')||'',who:'A'}];renderSB();}
+if(qs.has('sel'))openEditor(+qs.get('sel'));
 if(qs.has('still')){document.body.classList.add('still');if(qs.has('lyric'))LYR=[{t:+qs.get('still')-1,s:qs.get('lyric')}];clockOff=+qs.get('still');render(clockOff);}
 else requestAnimationFrame(loop);
 </script>
